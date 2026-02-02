@@ -5,9 +5,10 @@ __pycache__/
 
 # Personal files
 # Folder where downloaded CPAP data is stored, can be regenerated
-LatestCPAP/ 
+LatestCPAP*/
 # User configuration files
-config.yaml 
+config.yaml
+# Test configuration files generation
 *.yaml.test
 
 # C extensions
