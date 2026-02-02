@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Personal files
+LatestCPAP/
+config.yaml
+
 # C extensions
 *.so
 
