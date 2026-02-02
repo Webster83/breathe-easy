@@ -4,9 +4,11 @@ __pycache__/
 *$py.class
 
 # Personal files
-LatestCPAP/ # Folder where downloaded CPAP data is stored, can be regenerated
-config.yaml # My user configuration file
-*.yaml.test # Temporary config file for testing
+# Folder where downloaded CPAP data is stored, can be regenerated
+LatestCPAP/ 
+# User configuration files
+config.yaml 
+*.yaml.test
 
 # C extensions
 *.so
