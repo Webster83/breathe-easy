@@ -18,7 +18,15 @@ from yaml import safe_load
 
 
 def load_config() -> dict:
-    """Loads config.yaml from the current working directory and returns normalized config dict"""
+    """
+    Loads config.yaml from the current working directory
+
+    :param:
+    No parameters
+
+    :return: 
+    A dictionary of configuration parameters
+    """
     
     # Open config.yaml and load in data
     with open("config.yaml", "r") as f:
@@ -38,7 +46,7 @@ def main()-> None:
 def import_data(parameters:dict)->None:
     """Helper function to call the importer with the config.yaml contents
 
-    :param parameters (dict): a dictionary of imported parameters from config.yaml
+    :param (dict) parameters: a dictionary of imported parameters from config.yaml
 
     :return:
     Returns nothing

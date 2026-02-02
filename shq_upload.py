@@ -42,21 +42,17 @@ def get_shq_team_id(token):
         print(f"Failed to get Team Id: {e}")
         sys.exit(1)
 
-
-def get_hash(file_path):
-    engine = hashlib.md5()
-    with open(file_path, 'rb') as f:
-        for chunk in iter(lambda: f.read(4096), b''):
-            engine.update(chunk)
-    return engine.hexdigest()
-
 # Prepares the files for import and adds them to a collection and a JSON dump for
 # later processing in the request payload
 
 def compute_sleephq_content_hash(filepath: str) -> str:
     """
+    Calculates the SleepHQ content hash for a given file based on its bytes and filename as follows:
     SleepHQ content_hash = MD5(file_bytes + filename)
-    (filename only, not path) [1](https://github.com/amanuense/CPAP_data_uploader/issues/1)
+
+    :param filepath (str): Path to the file
+    :return str: Hexadecimal MD5 hash string
+    
     """
     md5 = hashlib.md5()
     filename = os.path.basename(filepath).encode("utf-8")
