@@ -10,12 +10,15 @@ usage: edit config.yaml to set the configuration that will be used to successful
 'python sleephq_uploader.py'
 '''
 
+
 import sd_copy
 import os
 import shq_upload
+import cleanup_files
 from pathlib import Path
 from yaml import safe_load
-
+from generate_config_yaml import gather_user_input, generate_config_yaml
+from pprint import pprint as pprint
 
 def load_config() -> dict:
     """
@@ -34,19 +37,78 @@ def load_config() -> dict:
     return config
 
 def main()-> None:
-    """Main program when used standalone"""
+    """Main program to run the SD Card data import and SleepHQ upload based on config.yaml"""
+
+    # Check if config.yaml exists, and if so, load it. If not, call the template generator with the configuration template dict
+    if not os.path.exists("config.yaml"):
+        # define the template, with the default values
+        shq_upload_template = {
+            'sd_options': {
+                'copy': True,
+                'sd_path': 'E:/',  # What location/partition/volume is your CPAP Card?
+                'save_to_path': 'LatestCPAP',  # This is a subfolder of the location where the python files exist
+                'number_of_days': 1,  # newest number of days to copy
+                'verbose': False,  # show extra logging
+                'test_only': False,  # set to true to only simulate the copy without actually copying files
+            },
+            'upload_options': {
+                'upload': True,
+                'client_id': 'Put Client ID value here',  # get this value from Sleep HQ API keys. See Readme.MD
+                'client_secret': 'Put Client Secret here',  # get this value from Sleep HQ API keys. See Readme.MD
+                'data_path': 'LatestCPAP',  # This is  a subfolder of the location where the python files exist.
+                'verbose': False,  # show extra logging
+            },
+            'cleanup_options': {
+                'cleanup': True,
+                'files': [
+                    # List specific files to clean up here
+                ],
+                'folders': [
+                    # List specific folders to clean up here
+                ],
+            }
+        }
+        
+        print("config.yaml not found in current working directory. Let's create one now")
+        generate_config_yaml('config.yaml', gather_user_input(template=shq_upload_template))
+        print("config.yaml created. Proceeding to load configuration and run the program.")
+    else:
+        print("config.yaml found. Proceeding to load configuration.")
+
+    # now that we have a yalid config yaml for this application, lets load it and parse the parameters for the desired function calls
     config = load_config()
     sd_params = config["sd_options"]
     upload_params = config["upload_options"]
+    cleanup_params = config["cleanup_options"]
 
-    import_data(sd_params)
-    upload_data(upload_params)
+    pprint("Configuration loaded from config.yaml")
+    pprint({"CPAP SD Import Options": sd_params})
+    pprint({"SleepHQ Upload Options": upload_params})
+    pprint({"Cleanup Options": cleanup_params})
+
+    if sd_params["copy"]:
+        print("Running SD Card data import...")
+        import_data(sd_params)
+
+    if upload_params["upload"]:
+        print("Running SleepHQ data upload...")
+        upload_data(upload_params)
+
+    # Run the cleanup routines if specifified in config.yaml
+    if cleanup_params["cleanup"]:
+        print("Running cleanup of generated files and folders...")
+        if len(cleanup_params["files"]) > 0:
+            for file in cleanup_params["files"]:
+                cleanup_files.cleanup_files([file])
+        if len(cleanup_params["folders"]) > 0:
+            for folder in cleanup_params["folders"]:
+                cleanup_files.cleanup_folder(folder)    
 
 
 def import_data(parameters:dict)->None:
     """Helper function to call the importer with the config.yaml contents
 
-    :param (dict) parameters: a dictionary of imported parameters from config.yaml
+    :param  dict parameters: a dictionary of imported parameters from config.yaml
 
     :return:
     Returns nothing
@@ -74,7 +136,7 @@ def upload_data(parameters:dict)->None:
     """
     Helper function to call the data uploader module
 
-    :param parameters (dict): a dictionary of imported parameters from config.yaml
+    :param dict parameters: a dictionary of imported parameters from config.yaml
     
     :return:
     Returns nothing

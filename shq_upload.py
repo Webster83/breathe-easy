@@ -51,7 +51,7 @@ def compute_sleephq_content_hash(filepath: str) -> str:
     SleepHQ content_hash = MD5(file_bytes + filename)
 
     :param filepath (str): Path to the file
-    :return str: Hexadecimal MD5 hash string
+    :return (str): Hexadecimal MD5 hash string
     
     """
     md5 = hashlib.md5()
