@@ -1,13 +1,21 @@
+
+import sys
+
+if sys.platform.startswith("win"):
+    try:
+        import truststore
+        truststore.inject_into_ssl()
+    except Exception as e:
+        print(f"Could not inject truststore into SSL context, {e}")
+        pass
+
 import requests
 import argparse
 import hashlib
 import os
-import sys
 import pathlib
-import json
 import time
 from pprint import pprint as pprint
-from collections import defaultdict, OrderedDict
 
 
 def get_shq_access_token(client_id,client_secret):
@@ -115,7 +123,7 @@ def get_shq_import_req_id(id, token):
 
 # Uploads the files, one by one to SleepHQ
 
-def post_files_to_shq(import_id, token, file_list):
+def post_files_to_shq(import_id, token, file_list, verbose=False):
     url = f"https://sleephq.com/api/v1/imports/{import_id}/files"
 
     headers = {
@@ -124,10 +132,12 @@ def post_files_to_shq(import_id, token, file_list):
     }
 
     for file in file_list:
-        pprint(f"Current file:\n{file}")
+        if verbose:
+            pprint(f"Current file:\n{file}")
 
         filepath = os.path.join(file["filepath"], file["filename"])
-        print(f"Filepath: {filepath}")
+        if verbose:
+            print(f"Filepath: {filepath}")
 
         shq_path = file.get("path", "./")
         md5_hash = file["content_hash"]  # already computed in get_files()
@@ -153,7 +163,8 @@ def post_files_to_shq(import_id, token, file_list):
                 )
 
             response.raise_for_status()
-            print(f"File {file['filename']} has been imported successfully")
+            if verbose:
+                print(f"File {file['filename']} has been imported successfully")
 
         except requests.RequestException as e:
             print(f"Failed to upload file {file['filename']}:\n*****-{e}")
@@ -163,6 +174,7 @@ def post_files_to_shq(import_id, token, file_list):
             sys.exit(1)
 
         finally:
+            print("All files have been uploaded to SleepHQ. Processing may take a few minutes.")
             time.sleep(1)
 
 
@@ -194,10 +206,11 @@ def validate_import_to_shq(id, token):
         response = requests.get(url, headers=headers)
         response.raise_for_status()
         # Check if failed_reason from the json has any value
-        if str(response.json()['data']['attributes']['failed_reason']):
-            failed_reason = response.json().get("data", {}).get("attributes", {}).get("failed_reason")
+        failed_reason = response.json().get("data", {}).get("attributes", {}).get("failed_reason")
+        if failed_reason:
             print(f"Processing failed: {failed_reason or 'No failure reason provided.'}")
-
+        else:
+            print("Import processed successfully.")
     except requests.RequestException as e:
         print(f"Failed to process imported files: {e}")
         print(f"But you can try the process_files request again later by calling: {url}")
@@ -232,7 +245,7 @@ def run_upload(clt_id, clt_sec, dpath, dspath, verbose) -> None:
     if verbose:
         print("Uploading files to SleepHQ")
 
-    post_files_to_shq(import_id, bearer, files_to_import)
+    post_files_to_shq(import_id, bearer, files_to_import, verbose)
 
     if verbose:
         print("Processing files")

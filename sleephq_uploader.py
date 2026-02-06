@@ -15,6 +15,7 @@ import sd_copy
 import os
 import shq_upload
 import cleanup_files
+import time
 from pathlib import Path
 from yaml import safe_load
 from generate_config_yaml import gather_user_input, generate_config_yaml
@@ -81,11 +82,6 @@ def main()-> None:
     upload_params = config["upload_options"]
     cleanup_params = config["cleanup_options"]
 
-    pprint("Configuration loaded from config.yaml")
-    pprint({"CPAP SD Import Options": sd_params})
-    pprint({"SleepHQ Upload Options": upload_params})
-    pprint({"Cleanup Options": cleanup_params})
-
     if sd_params["copy"]:
         print("Running SD Card data import...")
         import_data(sd_params)
@@ -102,7 +98,10 @@ def main()-> None:
                 cleanup_files.cleanup_files([file])
         if len(cleanup_params["folders"]) > 0:
             for folder in cleanup_params["folders"]:
-                cleanup_files.cleanup_folder(folder)    
+                cleanup_files.cleanup_folder(folder)
+
+    print("All operations completed.")
+    time.sleep(15)  # Pause to allow user to see final messages before terminal closes    
 
 
 def import_data(parameters:dict)->None:
