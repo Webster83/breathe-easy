@@ -193,3 +193,4 @@ cython_debug/
 # Scratch files
 .Scratch/
 SDBACKUP/
+*.csv
