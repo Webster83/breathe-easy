@@ -1,12 +1,24 @@
+'''
+shq_upload.py is a Python script designed to facilitate the upload of CPAP data files to SleepHQ. It handles authentication, file discovery, uploading, and processing of the data through SleepHQ's API. 
+The script can be run from the command line with appropriate arguments or called from another Python script as a wrapper function.
 
+This script is desgined to be platform agnostic and should work on Windows, Mac, and Linux. It also includes logic to inject the system truststore into the SSL context on Windows to avoid SSL errors
+for users in corporate environments with custom CAs. While only tested against Resmed CPAP data, it should work with any CPAP data that is imported from the sd card.
+
+Author: BChap
+Last Revision Date: 20260206
+'''
 import sys
 
+# On Windows, inject the system truststore into the SSL context, this needs to be done before importing requests
+# This will allow for any corporate or custom CAs to be recognized by requests module
 if sys.platform.startswith("win"):
     try:
         import truststore
         truststore.inject_into_ssl()
     except Exception as e:
-        print(f"Could not inject truststore into SSL context, {e}")
+        print(f"""Could not inject truststore into SSL context, {e}. You will exeperience SSL errors if your system uses 
+        custom or corporate CAs. Exit by typing Ctrl-C, or proceed to try.""")
         pass
 
 import requests
@@ -18,7 +30,15 @@ import time
 from pprint import pprint as pprint
 
 
-def get_shq_access_token(client_id,client_secret):
+def get_shq_access_token(client_id,client_secret)-> str:
+    '''Obtain an access token from SleepHQ using the provided client_id and client_secret.
+    Returns a string in the format 'Bearer <access_token>' if successful, or exits the program if there is an error.
+
+    :param str client_id: The client ID for authentication
+    :param str client_secret: The client secret for authentication
+    :return str: A string containing the access token in the format 'Bearer <access_token>'
+    '''
+
     url = "https://sleephq.com/oauth/token"
     payload = {
         'client_id': client_id,
@@ -36,7 +56,15 @@ def get_shq_access_token(client_id,client_secret):
         print(f"uid:{payload}")
         sys.exit(1)
 
-def get_shq_team_id(token):
+def get_shq_team_id(token) -> str:
+    
+    '''
+    get_shq_team_id retrieves the current team ID associated with the authenticated user from SleepHQ using the provided access token.
+    
+    :param str token: The access token for authentication, in the format 'Bearer <token>'
+    :return str: The current team ID associated with the authenticated user
+    '''
+
     url = "https://sleephq.com/api/v1/me"
     headers = {
         'Authorization': token,
@@ -50,16 +78,13 @@ def get_shq_team_id(token):
         print(f"Failed to get Team Id: {e}")
         sys.exit(1)
 
-# Prepares the files for import and adds them to a collection and a JSON dump for
-# later processing in the request payload
-
 def compute_sleephq_content_hash(filepath: str) -> str:
     """
     Calculates the SleepHQ content hash for a given file based on its bytes and filename as follows:
     SleepHQ content_hash = MD5(file_bytes + filename)
 
-    :param filepath (str): Path to the file
-    :return (str): Hexadecimal MD5 hash string
+    :param str filepath: Path to the file
+    :return str: Hexadecimal MD5 hash string
     
     """
     md5 = hashlib.md5()
@@ -72,13 +97,20 @@ def compute_sleephq_content_hash(filepath: str) -> str:
     md5.update(filename)
     return md5.hexdigest()
 
-def get_files(dir_path, sub_path=None):
+def get_files(dir_path, sub_path=None)-> list[dict]:
     """
-    Returns: List[dict] where each dict has:
-      filepath: absolute directory path with trailing os.sep
-      filename: base filename
-      path: SD-root relative directory like "./" or "./DATALOG/20230924/"
-      content_hash: MD5(file_bytes + filename) [1](https://github.com/amanuense/CPAP_data_uploader/issues/1)
+    Walks through the given directory and its subdirectories to find all files to upload, that do not start with a dot.
+    For each file, it computes the absolute directory path, filename, SleepHQ-style relative path, and content hash.
+
+    :param str dir_path: The base directory to search for files (eg ./LatestCPAP)
+    :param str sub_path: Optional subdirectory path within dir_path to search (eg "./ImportData/LatestCPAP")
+
+    :return: List[dict]:
+      A list of dictionaries, each containing the following keys for a file:
+      str filepath: absolute directory path with trailing os.sep
+      str filename: base filename
+      Path path: SD-root relative directory like "./" or "./DATALOG/20230924/"
+      str content_hash: MD5(file_bytes + filename)
     """
     base = pathlib.Path(dir_path)
 
@@ -106,9 +138,8 @@ def get_files(dir_path, sub_path=None):
 
     return file_items
 
+def get_shq_import_req_id(id, token) -> str:
 
-# Obtains an Import Reservation Id from SleepHQ
-def get_shq_import_req_id(id, token):
     url = f"https://sleephq.com/api/v1/teams/{id}/imports"
     headers = {'Authorization': token, 'Accept': 'application/json'}
     payload = {'programatic': False}
@@ -124,6 +155,15 @@ def get_shq_import_req_id(id, token):
 # Uploads the files, one by one to SleepHQ
 
 def post_files_to_shq(import_id, token, file_list, verbose=False):
+    '''
+    post_files_to_shq uploads files to SleepHQ for a given import reservation ID.
+    
+    :param str import_id: The import reservation ID obtained from SleepHQ API call
+    :param token: The access token for authentication, in the format 'Bearer <token>'
+    :param list[dict] file_list: List of file dictionaries returned by get_files()
+    :param bool verbose: If True, prints detailed information during execution
+    :return: None
+    '''
     url = f"https://sleephq.com/api/v1/imports/{import_id}/files"
 
     headers = {
@@ -179,7 +219,14 @@ def post_files_to_shq(import_id, token, file_list, verbose=False):
 
 
 # Closes the Import and starts the processing of the uploaded files
-def process_shq_imports(id, token):
+def process_shq_imports(id, token)-> None:
+    '''
+    process_shq_imports sends a request to SleepHQ to start processing the uploaded files for a given import reservation ID.
+    
+    :param str id: The import reservation ID obtained from SleepHQ API call
+    :param str token: The access token for authentication, in the format 'Bearer <token>'
+    :return: None
+    '''
     url = f"https://sleephq.com/api/v1/imports/{id}/process_files"
     headers = {
         'Authorization': token,
@@ -196,7 +243,14 @@ def process_shq_imports(id, token):
 
 
 # Check the Import processing of the uploaded files
-def validate_import_to_shq(id, token):
+def validate_import_to_shq(id, token)->None:
+    '''
+    validate_import_to_shq checks the status of the import processing for a given import reservation ID and prints the result.
+    
+    :param str id: The import reservation ID obtained from SleepHQ API call
+    :param str token: The access token for authentication, in the format 'Bearer <token>'
+    :return: None
+    '''
     url = f"https://sleephq.com/api/v1/imports/{id}"
     headers = {
         'Authorization': token,
@@ -216,19 +270,17 @@ def validate_import_to_shq(id, token):
         print(f"But you can try the process_files request again later by calling: {url}")
         sys.exit(1)
 
-# Parse arguments
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(
-        description="Upload CPAP data to SleepHQ."
-    )
-    p.add_argument("--client-id", required=True, help='Client ID API Key')
-    p.add_argument("--client-secret", required=True, help='Client Secret API Key')
-    p.add_argument("--data-path", required=True, default="latestcpap", help='CPAP Data Directory')
-    p.add_argument("--verbose", required=False, default = False, help='Display step-by-step processing')
-    return p.parse_args()
-
-
 def run_upload(clt_id, clt_sec, dpath, dspath, verbose) -> None:
+    '''
+    run_upload orchestrates the entire upload process to SleepHQ, including authentication, file discovery, uploading, processing, and validation.
+    
+    :param str clt_id: Client ID for authentication
+    :param str clt_sec: Client Secret for authentication
+    :param str dpath: Client Data Directory
+    :param str dspath: Client Data Subdirectory Path
+    :param bool verbose: Use verbose output for debugging and detailed information during execution
+    :return: None
+    '''
     bearer = get_shq_access_token(clt_id, clt_sec)
 
     # get_files now returns a LIST of file dicts
@@ -260,9 +312,26 @@ def run_upload(clt_id, clt_sec, dpath, dspath, verbose) -> None:
 
     print("Upload completed successfully. Visit https://sleephq.com to view your updated data")
 
+def parse_args() -> argparse.Namespace:
+    '''
+    parse_args uses argparse to parse command line arguments for the SleepHQ CPAP data upload script.
+    
+    :return Namespace: An argparse.Namespace object containing the parsed command line arguments:
+    '''
+    p = argparse.ArgumentParser(
+        description="Upload CPAP data to SleepHQ."
+    )
+    p.add_argument("--client-id", required=True, help='Client ID API Key')
+    p.add_argument("--client-secret", required=True, help='Client Secret API Key')
+    p.add_argument("--data-path", required=True, default="latestcpap", help='CPAP Data Directory')
+    p.add_argument("--verbose", required=False, default = False, help='Display step-by-step processing')
+    return p.parse_args()
 
-# Main runtime
 def main():
+    '''
+    This function serves as the main entry point for the SleepHQ CPAP data upload script. It parses command line arguments, sets up necessary paths, and orchestrates the upload process by calling the run_upload function
+    While it exists, the script is designed to be run from the command line with the appropriate arguments, or called from another Python script as a wrapper function where the arguments can be passed directly to run_upload.
+    '''
     # Parse the Arguments from the CLI or wrapper call
     args = parse_args()
     client_id = args.client_id

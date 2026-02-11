@@ -101,7 +101,8 @@ def main()-> None:
                 cleanup_files.cleanup_folder(folder)
 
     print("All operations completed.")
-    time.sleep(15)  # Pause to allow user to see final messages before terminal closes    
+    time.sleep(5)  # Pause to allow user to see final messages before terminal closes. 15 seconds was too long.
+        
 
 
 def import_data(parameters:dict)->None:
