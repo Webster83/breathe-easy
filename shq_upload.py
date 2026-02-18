@@ -17,7 +17,7 @@ if sys.platform.startswith("win"):
         import truststore
         truststore.inject_into_ssl()
     except Exception as e:
-        print(f"""Could not inject truststore into SSL context, {e}. You will exeperience SSL errors if your system uses 
+        print(f"""Could not inject truststore into SSL context, {e}. You will experience SSL errors if your system uses 
         custom or corporate CAs. Exit by typing Ctrl-C, or proceed to try.""")
         pass
 
@@ -154,14 +154,15 @@ def get_shq_import_req_id(id, token) -> str:
 
 # Uploads the files, one by one to SleepHQ
 
+
 def post_files_to_shq(import_id, token, file_list, verbose=False):
     '''
     post_files_to_shq uploads files to SleepHQ for a given import reservation ID.
-    
+
     :param str import_id: The import reservation ID obtained from SleepHQ API call
     :param token: The access token for authentication, in the format 'Bearer <token>'
     :param list[dict] file_list: List of file dictionaries returned by get_files()
-    :param bool verbose: If True, prints detailed information during execution
+    :param bool verbose: If True, prints detailed info during execution
     :return: None
     '''
     url = f"https://sleephq.com/api/v1/imports/{import_id}/files"
@@ -171,18 +172,23 @@ def post_files_to_shq(import_id, token, file_list, verbose=False):
         "Accept": "application/vnd.api+json, application/json;q=0.9, */*;q=0.8",
     }
 
+    total_files = len(file_list)
+    current_index = 0
+    print(f"Starting upload of {total_files} files to SleepHQ...")
     for file in file_list:
+        current_index += 1  # Track index to know when the loop hits the final file
+
         if verbose:
             pprint(f"Current file:\n{file}")
 
         filepath = os.path.join(file["filepath"], file["filename"])
+
         if verbose:
             print(f"Filepath: {filepath}")
 
         shq_path = file.get("path", "./")
-        md5_hash = file["content_hash"]  # already computed in get_files()
+        md5_hash = file["content_hash"]
 
-        # ✅ Send the field name the API is asking for
         form_data = {
             "name": file["filename"],
             "path": shq_path,
@@ -203,19 +209,24 @@ def post_files_to_shq(import_id, token, file_list, verbose=False):
                 )
 
             response.raise_for_status()
+
             if verbose:
                 print(f"File {file['filename']} has been imported successfully")
 
         except requests.RequestException as e:
             print(f"Failed to upload file {file['filename']}:\n*****-{e}")
             if response is not None:
-                print(f"Response headers:{response.headers}")
-                print(f"Response body:{response.text}")
+                print(f"Response headers: {response.headers}")
+                print(f"Response body: {response.text}")
             sys.exit(1)
 
         finally:
-            print("All files have been uploaded to SleepHQ. Processing may take a few minutes.")
-            time.sleep(1)
+            # Only show message after ALL files are uploaded
+            if current_index == total_files:
+                print("All files have been uploaded to SleepHQ. Processing may take a few minutes.")
+
+            # Optional pacing delay
+            time.sleep(0.25)
 
 
 # Closes the Import and starts the processing of the uploaded files
@@ -270,7 +281,7 @@ def validate_import_to_shq(id, token)->None:
         print(f"But you can try the process_files request again later by calling: {url}")
         sys.exit(1)
 
-def run_upload(clt_id, clt_sec, dpath, dspath, verbose) -> None:
+def run_upload(clt_id:str, clt_sec:str, dpath:str, dspath:str, verbose:bool) -> None:
     '''
     run_upload orchestrates the entire upload process to SleepHQ, including authentication, file discovery, uploading, processing, and validation.
     
@@ -336,6 +347,7 @@ def main():
     args = parse_args()
     client_id = args.client_id
     client_secret = args.client_secret
+    verbose = bool(args.verbose)
     
     # Get the current working directory. We are expecting the user CPAP data to be a subfolder of this directory
     exec_dir = os.getcwd()
@@ -343,7 +355,7 @@ def main():
     data_subdir_path = data_dir_path + os.sep
 
     # Run the upload logic routine
-    run_upload(args.client_id,args.client_secret,data_dir_path,data_subdir_path,args.verbose)
+    run_upload(client_id,client_secret,data_dir_path,data_subdir_path,verbose)
 
 if __name__ == "__main__":
     main()
