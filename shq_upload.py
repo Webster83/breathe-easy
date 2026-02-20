@@ -6,7 +6,7 @@ This script is desgined to be platform agnostic and should work on Windows, Mac,
 for users in corporate environments with custom CAs. While only tested against Resmed CPAP data, it should work with any CPAP data that is imported from the sd card.
 
 Author: BChap
-Last Revision Date: 20260206
+Last Revision Date: 20260219
 '''
 import sys
 
@@ -21,14 +21,13 @@ if sys.platform.startswith("win"):
         custom or corporate CAs. Exit by typing Ctrl-C, or proceed to try.""")
         pass
 
-import requests
 import argparse
 import hashlib
 import os
 import pathlib
+import requests
 import time
 from pprint import pprint as pprint
-
 
 def get_shq_access_token(client_id,client_secret)-> str:
     '''Obtain an access token from SleepHQ using the provided client_id and client_secret.
