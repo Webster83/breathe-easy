@@ -107,7 +107,7 @@ def main()-> None:
                                    ezshare_params['overwrite'],
                                    global_params['number_of_days'],
                                    global_params['verbose'])
-    if global_params['upload_from_local_card']:
+    if global_params['upload_from_local_sd_card']:
         # We want to get files from local 
         print("Running SD Card data import...")
         sd_copy.run_backup(sd_params['sd_path'],

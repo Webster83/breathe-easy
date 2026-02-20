@@ -2,26 +2,48 @@ import subprocess
 import time
 import sys
 
+from typing import Optional
+
 
 def run_command(cmd):
-    """Run a shell command and return output."""
+    """
+    Runs a shell command returning results of the command
+
+    :param str cmd: a CLI command to run
+    :return: output of command, with errors and return codes
+    :rtype: str
+
+    """
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     return result.stdout.strip(), result.stderr.strip(), result.returncode
 
 
-def get_current_ssid():
-    """Get the currently connected Wi-Fi SSID."""
+def get_current_ssid()->Optional[str]:
+    """
+    returns the SSID of the currently connected wifi network
+    if not connected, returns None
+
+    :return: The name of the wifi network
+    :rtype: Optional[str]
+    """
+
     out, _, _ = run_command(["netsh", "wlan", "show", "interfaces"])
     for line in out.splitlines():
         if "SSID" in line and "BSSID" not in line:
             return line.split(":", 1)[1].strip()
-    return None
+    return 
 
 
 def scan_available_networks(max_attempts=3, delay_between_scans=3):
     """
     Force a Wi-Fi scan and return a list of SSIDs currently visible.
     Retries if the list is empty.
+
+    :param int max_attempts: The number of scans to conduct to find any SSIDs
+    :param int delay_between_scans: seconds delay between each scan
+
+    :return: list of SSIDs currently visible
+    :rtype: list[str]
     """
     for attempt in range(1, max_attempts + 1):
         print(f"📡 Scanning for Wi-Fi networks... (Attempt {attempt}/{max_attempts})")
@@ -47,9 +69,18 @@ def scan_available_networks(max_attempts=3, delay_between_scans=3):
 def connect_wifi(profile_name, timeout=20, retry_interval=3):
     """
     Attempt to connect to a Wi-Fi profile if not already connected.
-    Raises ConnectionError if:
-      - Network is not in range
-      - Connection fails within timeout
+
+    :param str profile_name: The windows profile name for the SSID
+    :param int timeout: The timeout in seconds
+    :param int retry_interval: The number of seconds between retries
+
+    :raises ConnectionError: if
+    
+        - Network is not in range
+        - Connection fails within timeout
+    
+    :return:
+    :rtype: None
     """
     current_ssid = get_current_ssid()
     if current_ssid and current_ssid.lower() == profile_name.lower():
