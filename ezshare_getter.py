@@ -1,29 +1,34 @@
 """
 ezshare_getter.py facilitates getting the ResMed 9/10/11 series files from a WiFi enabled (ezshare)
-card and getting the most recent (N) days worth of data. This can be used standalone, or as an import module
-that will enter at the runner function.
+card and getting the most recent (N) days worth of data. This can be used standalone, or as an 
+import module that will enter at the runner function.
 
 Author: BChap
 Last Modified: 20260219
 """
 
-import argparse
+# Standard imports
 import ctypes
 import os
-import re
-import requests
 import sys
 import time
-import connect_wifi_windows
-from bs4 import BeautifulSoup, Tag
-from bs4.element import NavigableString
 from ctypes import wintypes
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Optional, Mapping
 from urllib.parse import urljoin, urlparse, unquote
+
+# Third-Party Imports
+import argparse
+import re
+import requests
+from bs4 import BeautifulSoup, Tag
+from bs4.element import NavigableString
 from yaml import safe_load
+
+# First-Party Imports
+import connect_wifi_windows
 
 def load_config(config: str) -> dict:
     """
@@ -34,25 +39,30 @@ def load_config(config: str) -> dict:
 
 def parse_args() -> argparse.Namespace:
     """
-    To be implemented
+    Parse the CLI arguments
     """
     p = argparse.ArgumentParser(
         description="Get ResMed S10/11 Data from an EZSh@re Wifi SD Card"
     )
-    p.add_argument("--ip_address", required=False, default="192.168.4.1", help="IP address of EZShare Card")
+    p.add_argument("--ip_address", required=False, default="192.168.4.1", help="IP address of " \
+    "EZShare Card")
     p.add_argument("--root_dir", required=False, default="A:")
-    p.add_argument("--sd_ssid", required=False, default="ezshare", help="EZShare wifi profile name")
+    p.add_argument("--sd_ssid", required=False, default="ezshare", help="EZShare wifi profile " \
+    "name")
     p.add_argument("--save_to", required=False, default="latestcpap", help="CPAP Data Directory")
-    p.add_argument("--overwrite", required=False, action="store_true", help="overwrite existing files?")
+    p.add_argument("--overwrite", required=False, action="store_true", help="overwrite existing " \
+    "files?")
     p.add_argument("--home_ssid", required=False, default="", help="Home wifi profile name")
     p.add_argument("--n_days", required=True,help="Number of days to download")
     p.add_argument("--verbose", required=False, action="store_true", help="verbose logging")
     return p.parse_args()
 
 def ensure_dir(path: Path):
+    """Ensures that the directory exists before trying to write files under it"""
     path.mkdir(parents=True, exist_ok=True)
 
 def script_dir(verbose: bool = False) -> Path:
+    """Returns the current script's directory location"""
     try:
         p = Path(__file__).resolve().parent
         if verbose:
@@ -62,6 +72,13 @@ def script_dir(verbose: bool = False) -> Path:
         return Path.cwd()
 
 def is_yyyymmdd(name: str) -> bool:
+    """Determines if the name is of date ISO8601 format
+    
+    :param str name: name to evaluate
+    
+    :return: Compliance with ISO8601
+    :rtype: Bool
+    """
     try:
         datetime.strptime(name, "%Y%m%d")
         return True
@@ -151,7 +168,7 @@ def _parse_http_date(value: str) -> Optional[datetime]:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.astimezone(timezone.utc)
-    except Exception:
+    except AttributeError:
         return None
 
 def _datetime_to_filetime(dt_utc: datetime) -> wintypes.FILETIME:
@@ -164,8 +181,8 @@ def _datetime_to_filetime(dt_utc: datetime) -> wintypes.FILETIME:
         dt_utc = dt_utc.astimezone(timezone.utc)
 
     # FILETIME = (Unix timestamp + 11644473600) * 10^7
-    EPOCH_AS_FILETIME = 11644473600  # seconds between 1601-01-01 and 1970-01-01
-    hundreds = int((dt_utc.timestamp() + EPOCH_AS_FILETIME) * 10**7)
+    epoch_as_filetime = 11644473600  # seconds between 1601-01-01 and 1970-01-01
+    hundreds = int((dt_utc.timestamp() + epoch_as_filetime) * 10**7)
 
     ft = wintypes.FILETIME()
     ft.dwLowDateTime = hundreds & 0xFFFFFFFF
@@ -177,18 +194,22 @@ def _set_windows_creation_time(path: Path, dt: datetime, also_set_last_write: bo
     Set Windows creation time to 'dt' (UTC-aware).
     Optionally also set last write time to 'dt' for consistency.
     """
-    FILE_WRITE_ATTRIBUTES = 0x0100
-    OPEN_EXISTING = 3
-    FILE_SHARE_READ = 0x00000001
-    FILE_SHARE_WRITE = 0x00000002
-    FILE_SHARE_DELETE = 0x00000004
 
-    CreateFileW = ctypes.windll.kernel32.CreateFileW
-    SetFileTime = ctypes.windll.kernel32.SetFileTime
-    CloseHandle = ctypes.windll.kernel32.CloseHandle
+    # Windows Attribute Constants
+    attribs={
+        "FILE_WRITE_ATTRIBUTES": 0x0100,
+        "OPEN_EXISTING": 3,
+        "FILE_SHARE_READ" : 0x00000001,
+        "FILE_SHARE_WRITE" : 0x00000002,
+        "FILE_SHARE_DELETE" : 0x00000004,
+    }
 
-    CreateFileW.restype = wintypes.HANDLE
-    CreateFileW.argtypes = [
+    create_file_w = ctypes.windll.kernel32.CreateFileW
+    set_file_time = ctypes.windll.kernel32.SetFileTime
+    close_handle = ctypes.windll.kernel32.CloseHandle
+
+    create_file_w.restype = wintypes.HANDLE
+    create_file_w.argtypes = [
         wintypes.LPCWSTR,  # lpFileName
         wintypes.DWORD,    # dwDesiredAccess
         wintypes.DWORD,    # dwShareMode
@@ -198,20 +219,22 @@ def _set_windows_creation_time(path: Path, dt: datetime, also_set_last_write: bo
         wintypes.HANDLE,   # hTemplateFile
     ]
 
-    SetFileTime.argtypes = [
+    set_file_time.argtypes = [
         wintypes.HANDLE,
         ctypes.POINTER(wintypes.FILETIME),  # lpCreationTime
         ctypes.POINTER(wintypes.FILETIME),  # lpLastAccessTime
         ctypes.POINTER(wintypes.FILETIME),  # lpLastWriteTime
     ]
-    SetFileTime.restype = wintypes.BOOL
+    set_file_time.restype = wintypes.BOOL
 
-    handle = CreateFileW(
+    handle = create_file_w(
         str(path),
-        FILE_WRITE_ATTRIBUTES,
-        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        attribs['FILE_WRITE_ATTRIBUTES']|
+        attribs["FILE_SHARE_READ"]|
+        attribs['FILE_SHARE_WRITE']|
+        attribs['FILE_SHARE_DELETE'],
         None,
-        OPEN_EXISTING,
+        attribs['OPEN_EXISTING'],
         0,
         None,
     )
@@ -221,17 +244,18 @@ def _set_windows_creation_time(path: Path, dt: datetime, also_set_last_write: bo
 
     try:
         ft = _datetime_to_filetime(dt)
-        lpCreationTime = ctypes.byref(ft)
-        lpAccessTime = None
-        lpWriteTime = ctypes.byref(ft) if also_set_last_write else None
+        lp_creation_time = ctypes.byref(ft)
+        lp_access_time = None
+        lp_write_time = ctypes.byref(ft) if also_set_last_write else None
 
-        ok = SetFileTime(handle, lpCreationTime, lpAccessTime, lpWriteTime)
+        ok = set_file_time(handle, lp_creation_time, lp_access_time, lp_write_time)
         if not ok:
             raise OSError("SetFileTime failed")
     finally:
-        CloseHandle(handle)
+        close_handle(handle)
 
-def _pick_best_timestamp(listing_dt: Optional[datetime], headers: Mapping[str, str]) -> Optional[datetime]:
+def _pick_best_timestamp(listing_dt: Optional[datetime],
+                         headers: Mapping[str, str]) -> Optional[datetime]:
     """
     Priority:
       1) listing_dt (assume local wall time; convert to UTC)
@@ -243,7 +267,7 @@ def _pick_best_timestamp(listing_dt: Optional[datetime], headers: Mapping[str, s
             # Convert naive local datetime -> epoch -> UTC aware
             ts = time.mktime(listing_dt.timetuple())
             return datetime.fromtimestamp(ts, tz=timezone.utc)
-        except Exception:
+        except AttributeError:
             pass
 
     lm = headers.get("Last-Modified") or headers.get("last-modified")
@@ -253,6 +277,7 @@ def _pick_best_timestamp(listing_dt: Optional[datetime], headers: Mapping[str, s
             now_utc = datetime.now(timezone.utc) + timedelta(seconds=5)
             if lm_dt.year >= 2000 and lm_dt <= now_utc:
                 return lm_dt
+    return None
 
 def _apply_timestamp(path: Path, chosen_dt_utc: Optional[datetime]):
     """
@@ -264,13 +289,13 @@ def _apply_timestamp(path: Path, chosen_dt_utc: Optional[datetime]):
     ts = chosen_dt_utc.timestamp()
     try:
         os.utime(path, (ts, ts))
-    except Exception as e:
+    except AttributeError as e:
         print(f"  [warn] could not set mtime/atime: {e}")
 
     if sys.platform.lower().startswith("win"):
         try:
             _set_windows_creation_time(path, chosen_dt_utc, also_set_last_write=False)
-        except Exception as e:
+        except AttributeError as e:
             print(f"  [warn] could not set creation time: {e}")
 
 def _normalize_href(el: Tag) -> Optional[str]:
@@ -372,11 +397,7 @@ def download_file(
     session: requests.Session,
     file_url: str,
     dest_dir: Path,
-    overwrite: bool = False,
-    case_collision_policy: str = "suffix",
-    dest_filename: Optional[str] = None,
-    listing_dt: Optional[datetime] = None,
-    verbose: bool = False,
+    options: dict
 ):
     """
     Download a file URL (expected to be '/download?').
@@ -389,32 +410,37 @@ def download_file(
 
         ctype = r.headers.get("Content-Type", "")
         if "text/html" in (ctype or "").lower():
-            if verbose:
+            if options['verbose']:
                 print(f"  [skip] HTML/listing detected (not a file): {file_url}")
             return
 
         # Filename precedence:
         # 1) Provided by caller (from listing) — preserves exact case
         # 2) Content-Disposition / URL path — fallback
-        fname = dest_filename or pick_filename_from_response(r, file_url)
+        fname = options['dest_filename'] or pick_filename_from_response(r, file_url)
 
         # SleepHQ-specific rule: STR.EDF -> STR.edf
         fname = _normalize_str_edf_filename(fname)
 
         ensure_dir(dest_dir)
         out_path = _resolve_case_collision(
-            dest_dir, fname, "overwrite" if overwrite else case_collision_policy
+            dest_dir,
+            fname,
+            "overwrite" if options['overwrite'] else options['case_collision_policy']
         )
 
-        if (out_path.exists() and not overwrite) and case_collision_policy == "skip":
-            if verbose:
+        if (
+            out_path.exists() and not options['overwrite']
+            and options['case_collision_policy'] == "skip"
+        ):
+            if options['verbose']:
                 print(f"  [skip] exists (case-insensitive match): {out_path}")
             return
 
-        if out_path.name != fname and not overwrite and verbose:
+        if out_path.name != fname and not options['overwrite'] and options['verbose']:
             print(f"  [info] name collision (case-insensitive). Saving as: {out_path.name}")
 
-        if verbose:
+        if options['verbose']:
             print(f"  [save] {out_path}")
 
         with open(out_path, "wb") as f:
@@ -423,149 +449,146 @@ def download_file(
                     f.write(chunk)
 
         # Prefer listing_dt; if missing, use sane Last-Modified; else leave OS time
-        chosen = _pick_best_timestamp(listing_dt, r.headers)
-        if verbose:
-            print(f"  [ts] listing_dt={listing_dt}   Last-Modified={r.headers.get('Last-Modified')}   chosen={chosen}")
+        chosen = _pick_best_timestamp(options['listing_dt'], r.headers)
+        if options['verbose']:
+            print(f"""  [ts] listing_dt={options['listing_dt']}
+                     Last-Modified={r.headers.get('Last-Modified')}
+                  chosen={chosen}""")
         _apply_timestamp(out_path, chosen)
 
-        # Optional: adjust visible case on Windows if only-casing changed
-        # _force_display_case_on_windows(dest_dir, out_path.name)
+def process_root(s: requests.Session,
+                 url: str,
+                 dir_path: Path,
+                 options: dict
+):
 
-def process_root(s: requests.Session, path: str, dir: Path, overwrite: bool = False, verbose: bool = False):
-    print(f"\n[Root] Listing {path}")
-    root_files, root_dirs = list_directory(s, path, verbose=verbose)
+    """Logic that processes the root directory of the EzSh@re SD card"""
+
+    print(f"\n[Root] Listing {url}")
+    root_files, root_dirs = list_directory(s, url, verbose=options['verbose'])
     print(f"     found: {len(root_files)} files at root; {len(root_dirs)} dirs (dirs ignored here)")
+
+    root_options = options
+    root_options['case_collision_policy']="suffix"
+
     for file in root_files:
-        if verbose:
+        if options['verbose']:
             print(f"The file name to be downloaded is {file['name']}")
+
+        root_options['dest_filename']=file['name']
+        root_options['listing_dt']=file.get("dt")
+
         download_file(
             s,
             file["href"],
-            dir,
-            overwrite=overwrite,
-            dest_filename=file["name"],
-            listing_dt=file.get("dt"),
-            verbose=verbose,
+            dir_path,
+            root_options
         )
 
-def process_settings(s: requests.Session, path: str, dir: Path, overwrite: bool = False, verbose: bool = False):
-    print(f"\n[SETTINGS] Listing {path}")
-    settings_files, settings_dirs = list_directory(s, path, verbose=verbose)
-    print(f"     found: {len(settings_files)} files in SETTINGS; {len(settings_dirs)} dirs (dirs ignored here)")
+def process_settings(s: requests.Session,
+                    url: str,
+                    dir_path: Path,
+                    options: dict
+                    ):
+    """Processes the files within the SETTINGS folder"""
+    print(f"\n[SETTINGS] Listing {url}")
+    settings_files, settings_dirs = list_directory(s, url, verbose=options['verbose'])
+    print(f"""     found: {len(settings_files)} files in SETTINGS; {len(settings_dirs)} dirs (dirs
+          ignored here)""")
+
+    settings_options = options
+    settings_options['case_collision_policy']="suffix"
+
     for file in settings_files:
+        settings_options['dest_filename']=file['name']
+        settings_options['listing_dt']=file.get("dt")
+
         download_file(
             s,
             file["href"],
-            dir,
-            dest_filename=file["name"],
-            listing_dt=file.get("dt"),
-            overwrite=overwrite,
-            verbose=verbose,
+            dir_path,
+            settings_options
         )
 
 def process_datalog(
     s: requests.Session,
-    path: str,
-    dir: Path,
-    days: int,
-    overwrite: bool = False,
-    verbose: bool = False,
+    url: str,
+    dir_path: Path,
+    options: dict
 ):
     """
     Fetch files from the most recent `days` DATALOG/YYYYMMDD folders and save under:
         <dir>/<YYYYMMDD>/<files>
     """
-    print(f"\n[DATALOG] Listing {path}")
-    _, datalog_dirs = list_directory(s, path, verbose=verbose)
+    print(f"\n[DATALOG] Listing {url}")
+    _, datalog_dirs = list_directory(s, url, verbose=options['verbose'])
     dated_dirs = [d for d in datalog_dirs if is_yyyymmdd(d["name"])]
     dated_dirs.sort(key=lambda d: d["name"], reverse=True)
 
-    selected = dated_dirs[:days]
-    if verbose:
+    selected = dated_dirs[:options['n_days']]
+    if options['verbose']:
         print(f" using most recent {len(selected)} dated folders: {[d['name'] for d in selected]}")
+
+    datalog_options = options
+    datalog_options['case_collision_policy']="suffix"
 
     for d in selected:
         ymd = d["name"]  # e.g., '20260216'
         print(f"\n[DATALOG]/{ymd} Listing {d['href']}")
-        files, subdirs = list_directory(s, d["href"], verbose=verbose)
-        if verbose:
+        files, subdirs = list_directory(s, d["href"], verbose=options['verbose'])
+        if options['verbose']:
             print(f"     found: {len(files)} files; {len(subdirs)} nested dirs (ignored)")
 
         # Ensure subfolder locally: <dir>/<YYYYMMDD>/
-        dated_dir = dir / ymd
+        dated_dir = dir_path / ymd
         ensure_dir(dated_dir)
 
         for file in files:
+            datalog_options['dest_filename']=file['name']
+            datalog_options['listing_dt']=file.get("dt")
+
             download_file(
                 s,
                 file["href"],
                 dated_dir,
-                overwrite=overwrite,
-                dest_filename=file["name"],
-                listing_dt=file.get("dt"),
-                verbose=verbose,
+                datalog_options
             )
 
-def runnner():
-    '''(ultimately get the args from parse args and then call run_ezshare directly)'''
-    config = load_config("./config.yaml")
-    sd_profile   = config["ezshare"]["card_ssid"]
-    home_profile = config["ezshare"]["home_ssid"]
-    sd_ip_addr   = config["ezshare"]["ip_address"]
-    root_dir     = config["ezshare"]["dir"]
-    save_dir      = config["global"]["save_to_path"]
-    overwrite    = bool(config["ezshare"]["overwrite"])
-    n_days       = int(config["ezshare"]["number_of_days"])
-    verbose      = bool(config["global"].get("verbose", False))
-
-    run_ezshare(sd_profile,
-                home_profile,
-                sd_ip_addr,
-                root_dir,
-                save_dir,
-                overwrite,
-                n_days,
-                verbose)
-
-def run_ezshare(sd_profile : str, 
-                home_profile : str, 
-                sd_ip_addr : str = '192.168.4.1', 
-                root_dir : str = 'dir=A:', 
-                save_dir : str = 'LatestCPAP',
-                overwrite : bool = True,
-                n_days : int = 1,
-                verbose : bool = False) -> None:
+def run_ezshare(sd_ip_addr:str,profiles:dict,dirs:dict,options:dict)->None:
     """
     run_ezshare is the import-callable entry point to this script, taking parameters
     to allow for successful execution. To make this multiplatform, it will need a platform
     parameter adding and then methods in this script to join wifi networks from
-    *nix and Darwin/macOS. At that point, sd_profile and home_profile will need to be updated to dict()
-    for key and value pairs, and the Windows method updated to just use the k/v for password field 
+    *nix and Darwin/macOS. At that point, sd_profile and home_profile will need to be updated to
+    dict()for key and value pairs, and the Windows method updated to just use the k/v for password
+    field 
     
-    :param str sd_profile: The Windows name of the SD Card wifi profile/SSID (eg 'ez share')
-    :param str home_profile: The Windows name of your home wifi profile/SSID (eg 'Netgear', 'FBWifi')
     :param str sd_ip_addr: The IP address of the SD Card (default is 192.168.4.1)
-    :param str root_dir: The Root directory the SD Card uses to list files (default 'dir=A:')
-    :param str save_dir: Which subdirectory should hold the CPAP machine data copy (default LatestCPAP)
-    :param bool overwrite: Overwrite existing folders?
-    :param int n_days: Number of days to copy (if this copy occurs before the device has created tonight's folder, 1 will get last night)
-    :param bool verbose: verbose output with additional detail on list folder and download file operations
+    :param dict profiles: Dictionary of SSIDs for SD card and Home
+    :param dict dirs: Dictionary of directories
+    :param dict options: Dictionary of options for Overwrite, Verbose and number of days to get
+
     :return:
     :rtype: None
     """
+
     # Build the session variables
     sd_url = f"http://{sd_ip_addr}/dir?"
-    
+
        # Prepare local output dirs
-    base_out    = script_dir(verbose) / save_dir
-    out_root    = base_out
-    out_settings= base_out / "SETTINGS"
-    out_datalog = base_out / "DATALOG"
+    base_out = script_dir(options['verbose'])/dirs['save']
+    directories = {
+        "out_root": base_out,
+        "out_settings": base_out/"SETTINGS",
+        "out_datalog": base_out/"DATALOG",
+    }
 
     # Listing URLs
-    root_list_url     = sd_url + root_dir
-    settings_list_url = sd_url + root_dir + "/SETTINGS"
-    datalog_list_url  = sd_url + root_dir + "/DATALOG"
+    urls = {
+        "root":sd_url + dirs['root'],
+        "settings": sd_url + dirs['root'] + "/SETTINGS",
+        "datalog": sd_url + dirs['root'] + "/DATALOG",
+    }
 
     # Session
     s = requests.Session()
@@ -573,49 +596,71 @@ def run_ezshare(sd_profile : str,
 
     # Join the sd card wifi
     try:
-        connect_wifi_windows.connect_wifi(sd_profile,20,3)
+        connect_wifi_windows.connect_wifi(profiles['sd'],20,3)
     except ConnectionError as conn_err:
         print(f"❌ {conn_err}")
         sys.exit("Unable to connect to the SD Card Network. Aborting")
 
-    # Iterate through the known folders needed for Resmed S10/11 device data imports 
+    # Iterate through the known folders needed for Resmed S10/11 device data imports
     # getting lists of files and folders found. The "process..." methods take care of the high level
-    # logic, and leave the implementation of the actual list and download to genericized methods to allow for
-    # code reuse
-   
-    print("Processing Root, SETTINGS, and DATALOG directories, downloading corresponding files")
-    process_root(s, root_list_url, out_root, overwrite, verbose)
-    process_settings(s, settings_list_url, out_settings, overwrite, verbose)
-    process_datalog(s, datalog_list_url, out_datalog, n_days, overwrite, verbose)
+    # logic, and leave the implementation of the actual list and download to genericized methods
+    # to allow for code reuse
 
-    # Copy operations finised. I may need to do some code hardening as I have had failed transports before. 
+    print("Processing Root, SETTINGS, and DATALOG directories, downloading corresponding files")
+    process_root(s,
+                urls['root'],
+                directories['out_root'],
+                options
+                )
+    process_settings(s,
+                    urls['settings'],
+                    directories['out_settings'],
+                    options
+                    )
+    process_datalog(s,
+                    urls['datalog'],
+                    directories['out_datalog'],
+                    options
+                    )
+
+    # Copy operations finished. I may need to do some code hardening as I have had failed transports
+    # before.
     print(f"Completed copy operations. Files saved under {base_out}")
 
     # Reconnect to home Wi-Fi. This probably needs to be a "Finally" under a try/except so
-    # that local connectivity is always restored after copy either succeeds or errors. 
+    # that local connectivity is always restored after copy either succeeds or errors.
 
-    print(f"Joining {home_profile}")
+    print(f"Joining {options['home_profile']}")
     try:
-        connect_wifi_windows.connect_wifi(home_profile,20,3)
+        connect_wifi_windows.connect_wifi(profiles['home'],20,3)
     except ConnectionError as conn_err:
         print(f"❌ {conn_err}")
         sys.exit("Unable to connect to the home network. Aborting")
-    
+
     time.sleep(2)
 
 def main():
-    args = parse_args()  # using config.yaml via runner()
-    print(f"Calling run_ezshare with {args}")
-    run_ezshare(args.sd_ssid,
-                args.home_ssid,
-                args.ip_address,
-                args.root_dir,
-                args.save_to,
-                args.overwrite,
-                int(args.n_days),
-                args.verbose)
+    '''Main. Calls arg parse to get the CLI args and then dispatches to the logical processor'''
+    args = parse_args()
 
+    # Building parameters for run_ezshare
+    wifi_profiles = {
+        "sd":args.sd_ssid,
+        "home":args.home_ssid,
+    }
 
+    directories = {
+        "root":args.root_dir,
+        "save":args.save_to,
+    }
+
+    options = {
+        "overwrite":args.overwrite,
+        "n_days":int(args.n_days),
+        "verbose":args.verbose,
+    }
+
+    run_ezshare(args.sd_ip_addr,wifi_profiles,directories,options)
 
 if __name__ == "__main__":
     main()

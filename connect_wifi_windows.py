@@ -1,9 +1,16 @@
-import subprocess
+'''
+connect_wifi_windows.py
+author: BChap
+Latest Revision Date: 20260220
+
+This script allows for wifi network association changes within the Windows environment
+'''
+
 import time
+import subprocess
 import sys
 
 from typing import Optional
-
 
 def run_command(cmd):
     """
@@ -31,7 +38,7 @@ def get_current_ssid()->Optional[str]:
     for line in out.splitlines():
         if "SSID" in line and "BSSID" not in line:
             return line.split(":", 1)[1].strip()
-    return 
+    return None
 
 
 def scan_available_networks(max_attempts=3, delay_between_scans=3):
@@ -107,7 +114,6 @@ def connect_wifi(profile_name, timeout=20, retry_interval=3):
 
     raise ConnectionError(f"Failed to join '{profile_name}'.")
 
-
 # CLI entry point
 if __name__ == "__main__":
     if len(sys.argv) != 2:
@@ -119,7 +125,4 @@ if __name__ == "__main__":
         connect_wifi(profile)
     except ConnectionError as e:
         print(f"❌ {e}")
-        sys.exit(1)
-    except Exception as e:
-        print(f"⚠️ Unexpected error: {e}")
         sys.exit(1)
