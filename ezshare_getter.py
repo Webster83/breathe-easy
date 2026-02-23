@@ -189,26 +189,44 @@ def _datetime_to_filetime(dt_utc: datetime) -> wintypes.FILETIME:
     ft.dwHighDateTime = (hundreds >> 32) & 0xFFFFFFFF
     return ft
 
-def _set_windows_creation_time(path: Path, dt: datetime, also_set_last_write: bool = False):
+def _set_windows_creation_time(
+    path: Path, dt: datetime, also_set_last_write: bool = False
+) -> None:
     """
-    Set Windows creation time to 'dt' (UTC-aware).
-    Optionally also set last write time to 'dt' for consistency.
+    Set the Windows creation time of 'path' to 'dt' (UTC-aware).
+    Optionally also set the last write time to 'dt' for consistency.
+
+    Parameters
+    ----------
+    path : Path
+        File system path to a *file* (works for directories if flags adjusted).
+    dt : datetime
+        A timezone-aware datetime (UTC recommended). Naive datetimes are
+        treated as UTC for safety.
+    also_set_last_write : bool
+        If True, also set the last write time to the same value.
     """
+    # --- Windows constants (PEP8: UPPER_SNAKE_CASE) ---
+    FILE_WRITE_ATTRIBUTES = 0x00000100
+    FILE_SHARE_READ = 0x00000001
+    FILE_SHARE_WRITE = 0x00000002
+    FILE_SHARE_DELETE = 0x00000004
+    OPEN_EXISTING = 3
+    FILE_ATTRIBUTE_NORMAL = 0x00000080
+    FILE_FLAG_BACKUP_SEMANTICS = 0x02000000  # needed for directories
+    INVALID_HANDLE_VALUE = wintypes.HANDLE(-1).value
 
-    # Windows Attribute Constants
-    attribs={
-        "FILE_WRITE_ATTRIBUTES": 0x0100,
-        "OPEN_EXISTING": 3,
-        "FILE_SHARE_READ" : 0x00000001,
-        "FILE_SHARE_WRITE" : 0x00000002,
-        "FILE_SHARE_DELETE" : 0x00000004,
-    }
+    # Convert datetime to FILETIME (caller may pass naive; interpret as UTC)
+    if dt.tzinfo is None:
+        dt_utc = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt_utc = dt.astimezone(timezone.utc)
+    filetime = _datetime_to_filetime(dt_utc)
 
-    create_file_w = ctypes.windll.kernel32.CreateFileW
-    set_file_time = ctypes.windll.kernel32.SetFileTime
-    close_handle = ctypes.windll.kernel32.CloseHandle
+    # Prepare WinAPI
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
-    create_file_w.restype = wintypes.HANDLE
+    create_file_w = kernel32.CreateFileW
     create_file_w.argtypes = [
         wintypes.LPCWSTR,  # lpFileName
         wintypes.DWORD,    # dwDesiredAccess
@@ -218,39 +236,60 @@ def _set_windows_creation_time(path: Path, dt: datetime, also_set_last_write: bo
         wintypes.DWORD,    # dwFlagsAndAttributes
         wintypes.HANDLE,   # hTemplateFile
     ]
+    create_file_w.restype = wintypes.HANDLE
 
+    set_file_time = kernel32.SetFileTime
     set_file_time.argtypes = [
-        wintypes.HANDLE,
-        ctypes.POINTER(wintypes.FILETIME),  # lpCreationTime
-        ctypes.POINTER(wintypes.FILETIME),  # lpLastAccessTime
-        ctypes.POINTER(wintypes.FILETIME),  # lpLastWriteTime
+        wintypes.HANDLE,                         # hFile
+        ctypes.POINTER(wintypes.FILETIME),       # lpCreationTime
+        ctypes.POINTER(wintypes.FILETIME),       # lpLastAccessTime
+        ctypes.POINTER(wintypes.FILETIME),       # lpLastWriteTime
     ]
     set_file_time.restype = wintypes.BOOL
 
+    close_handle = kernel32.CloseHandle
+    close_handle.argtypes = [wintypes.HANDLE]
+    close_handle.restype = wintypes.BOOL
+
+    # Access + sharing + attributes
+    desired_access = FILE_WRITE_ATTRIBUTES
+    share_mode = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
+
+    flags = FILE_ATTRIBUTE_NORMAL
+    if path.is_dir():
+        # If you ever call this for directories, this flag is required.
+        flags |= FILE_FLAG_BACKUP_SEMANTICS
+
     handle = create_file_w(
-        str(path),
-        attribs['FILE_WRITE_ATTRIBUTES']|
-        attribs["FILE_SHARE_READ"]|
-        attribs['FILE_SHARE_WRITE']|
-        attribs['FILE_SHARE_DELETE'],
-        None,
-        attribs['OPEN_EXISTING'],
-        0,
-        None,
+        str(path),            # lpFileName
+        desired_access,       # dwDesiredAccess
+        share_mode,           # dwShareMode
+        None,                 # lpSecurityAttributes
+        OPEN_EXISTING,        # dwCreationDisposition
+        flags,                # dwFlagsAndAttributes
+        None,                 # hTemplateFile (must be provided as 7th arg)
     )
-    INVALID_HANDLE_VALUE = wintypes.HANDLE(-1).value
+
     if handle == INVALID_HANDLE_VALUE:
-        raise OSError("CreateFileW failed to open handle for writing attributes")
+        err = ctypes.get_last_error()
+        raise OSError(
+            err,
+            f"CreateFileW failed for '{path}' "
+            f"(WinError {err}). Ensure the file exists and is accessible.",
+        )
 
     try:
-        ft = _datetime_to_filetime(dt)
-        lp_creation_time = ctypes.byref(ft)
-        lp_access_time = None
-        lp_write_time = ctypes.byref(ft) if also_set_last_write else None
+        creation_ptr = ctypes.byref(filetime)
+        access_ptr = None
+        write_ptr = ctypes.byref(filetime) if also_set_last_write else None
 
-        ok = set_file_time(handle, lp_creation_time, lp_access_time, lp_write_time)
+        ok = set_file_time(handle, creation_ptr, access_ptr, write_ptr)
         if not ok:
-            raise OSError("SetFileTime failed")
+            err = ctypes.get_last_error()
+            raise OSError(
+                err,
+                f"SetFileTime failed for '{path}' (WinError {err}).",
+            )
     finally:
         close_handle(handle)
 
@@ -630,7 +669,7 @@ def run_ezshare(sd_ip_addr:str,profiles:dict,dirs:dict,options:dict)->None:
     # Reconnect to home Wi-Fi. This probably needs to be a "Finally" under a try/except so
     # that local connectivity is always restored after copy either succeeds or errors.
 
-    print(f"Joining {options['home_profile']}")
+    print(f"Joining {profiles['home']}")
     try:
         connect_wifi_windows.connect_wifi(profiles['home'],20,3)
     except ConnectionError as conn_err:
@@ -660,7 +699,7 @@ def main():
         "verbose":args.verbose,
     }
 
-    run_ezshare(args.sd_ip_addr,wifi_profiles,directories,options)
+    run_ezshare(args.ip_address,wifi_profiles,directories,options)
 
 if __name__ == "__main__":
     main()

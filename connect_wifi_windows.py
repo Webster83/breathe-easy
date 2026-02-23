@@ -6,26 +6,28 @@ Latest Revision Date: 20260220
 This script allows for wifi network association changes within the Windows environment
 '''
 
-import time
 import subprocess
 import sys
+import time
 
 from typing import Optional
 
 def run_command(cmd):
+
     """
     Runs a shell command returning results of the command
 
     :param str cmd: a CLI command to run
     :return: output of command, with errors and return codes
     :rtype: str
-
     """
+
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     return result.stdout.strip(), result.stderr.strip(), result.returncode
 
 
 def get_current_ssid()->Optional[str]:
+
     """
     returns the SSID of the currently connected wifi network
     if not connected, returns None
@@ -33,6 +35,9 @@ def get_current_ssid()->Optional[str]:
     :return: The name of the wifi network
     :rtype: Optional[str]
     """
+
+    # only want the stdout of the netsh command. Not stderr or return code so
+    # assign those to _
 
     out, _, _ = run_command(["netsh", "wlan", "show", "interfaces"])
     for line in out.splitlines():
@@ -42,6 +47,7 @@ def get_current_ssid()->Optional[str]:
 
 
 def scan_available_networks(max_attempts=3, delay_between_scans=3):
+
     """
     Force a Wi-Fi scan and return a list of SSIDs currently visible.
     Retries if the list is empty.
@@ -52,6 +58,7 @@ def scan_available_networks(max_attempts=3, delay_between_scans=3):
     :return: list of SSIDs currently visible
     :rtype: list[str]
     """
+
     for attempt in range(1, max_attempts + 1):
         print(f"📡 Scanning for Wi-Fi networks... (Attempt {attempt}/{max_attempts})")
         run_command(["netsh", "wlan", "scan"])
@@ -74,6 +81,7 @@ def scan_available_networks(max_attempts=3, delay_between_scans=3):
 
 
 def connect_wifi(profile_name, timeout=20, retry_interval=3):
+
     """
     Attempt to connect to a Wi-Fi profile if not already connected.
 
@@ -89,6 +97,7 @@ def connect_wifi(profile_name, timeout=20, retry_interval=3):
     :return:
     :rtype: None
     """
+
     current_ssid = get_current_ssid()
     if current_ssid and current_ssid.lower() == profile_name.lower():
         print(f"✅ Already connected to '{profile_name}'.")

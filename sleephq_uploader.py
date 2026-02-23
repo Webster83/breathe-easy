@@ -1,7 +1,7 @@
 '''
 sleephq_uploader.py
 author: BChap, SleepHQ Forums
-Latest Revision Date: 20260219
+Latest Revision Date: 20260222
 
 sleephq_uploader.py simplifies the process of uploading the data from an SD Card to the Sleep HQ 
 website. This API access is available only to pro members. 
@@ -122,17 +122,34 @@ def main()-> None:
     if global_params['upload_from_ezshare']:
         # We want to get files from Wifi SD card
         # get the data from the EZShare
-        ezshare_getter.run_ezshare(ezshare_params['card_ssid'],
-                                   ezshare_params['home_ssid'],
-                                   ezshare_params['ip_address'],
-                                   ezshare_params['dir'],
-                                   global_params['save_to_path'],
-                                   ezshare_params['overwrite'],
-                                   global_params['number_of_days'],
-                                   global_params['verbose'])
+
+        print("🛜 Connecting to Wifi SD card to get requested data")
+
+        # define dicts for profiles, directories and options
+        profiles={
+            'sd':ezshare_params['card_ssid'],
+            'home':ezshare_params['home_ssid'],
+        }
+
+        directories={
+            'root':ezshare_params['dir'],
+            'save':global_params['save_to_path'],
+        }
+
+        options={
+            'overwrite':ezshare_params['overwrite'],
+            'verbose':global_params['verbose'],
+            'n_days':global_params['number_of_days'],
+        }
+
+        ezshare_getter.run_ezshare(ezshare_params['ip_address'],
+                                   profiles,
+                                   directories,
+                                   options)
+
     if global_params['upload_from_local_sd_card']:
         # We want to get files from local
-        print("Running SD Card data import...")
+        print("👟Running SD Card data import...")
         sd_copy.run_backup(sd_params['sd_path'],
                            global_params['save_to_path'],
                            'DATALOG',
@@ -146,7 +163,7 @@ def main()-> None:
 
     # Run the cleanup routines if specifified in config.yaml
     if global_params['cleanup_after_upload']:
-        print("Running cleanup of generated files and folders...")
+        print("🧹Cleaning up after copy and upload...")
         if len(cleanup_params["files"]) > 0:
             for file in cleanup_params["files"]:
                 cleanup_files.cleanup_files([file])
@@ -154,11 +171,12 @@ def main()-> None:
             for folder in cleanup_params["folders"]:
                 cleanup_files.cleanup_folder(folder)
 
-    print("All operations completed.")
+    print("✅ All operations completed.")
     time.sleep(5)  # Pause to allow user to see final messages before terminal closes.
                            # 15 seconds was too long.
 
 def upload_data(global_dict:dict,upload_dict:dict)->None:
+
     """
     Helper function to call the data uploader module
 
@@ -168,8 +186,11 @@ def upload_data(global_dict:dict,upload_dict:dict)->None:
     :return:
     :rtype: None
     """
+
     cpap_data_path = os.getcwd()+os.sep+global_dict["save_to_path"]
     cpap_subpath = cpap_data_path+os.sep
+    print("⏫ uploading to Sleep HQ Cloud ☁️")
+
     shq_upload.run_upload(upload_dict['sleephq_client_id'],
                           upload_dict['sleephq_client_secret'],
                           cpap_data_path,

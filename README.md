@@ -22,7 +22,7 @@ file directly, if comfortable, or delete and recreate. Please note if you should
 
 There are several supporting python files, all are necessary, can be called separately and are documented with docstrings for some assistance in parsing the code and working to extend it.
 
-These are: 
+These are:
 
 * sd_copy.py - copies and maintains timestamp data of the SD Card files for the newest 'n' days
 * shq_upload.py - uploads the CPAP data to SleepHQ using your Pro Account API keys
@@ -98,7 +98,7 @@ verbose - Boolean value - shows extra logging messages; caveats as with the abov
 
 cleanup - a Boolean value - cleanup lists of files and folders related to the copy and upload processes
 files - a list - list of file names to delete in the root (current working directory) folder
-folders - a list - list of folder names to delete that are child folders of the current working directory 
+folders - a list - list of folder names to delete that are child folders of the current working directory
 
 ## I think I've found a bug
 
