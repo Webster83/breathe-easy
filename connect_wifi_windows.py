@@ -1,7 +1,7 @@
 '''
 connect_wifi_windows.py
 author: BChap
-Latest Revision Date: 20260220
+Latest Revision Date: 20260222
 
 This script allows for wifi network association changes within the Windows environment
 '''
@@ -46,7 +46,7 @@ def get_current_ssid()->Optional[str]:
     return None
 
 
-def scan_available_networks(max_attempts=3, delay_between_scans=3):
+def scan_available_networks(max_attempts=3, delay_between_scans=3)->list:
 
     """
     Force a Wi-Fi scan and return a list of SSIDs currently visible.

@@ -188,13 +188,11 @@ def upload_data(global_dict:dict,upload_dict:dict)->None:
     """
 
     cpap_data_path = os.getcwd()+os.sep+global_dict["save_to_path"]
-    cpap_subpath = cpap_data_path+os.sep
     print("⏫ uploading to Sleep HQ Cloud ☁️")
 
     shq_upload.run_upload(upload_dict['sleephq_client_id'],
                           upload_dict['sleephq_client_secret'],
                           cpap_data_path,
-                          cpap_subpath,
                           global_dict['verbose'])
 
 if __name__ == "__main__":
