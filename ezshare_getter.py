@@ -207,14 +207,14 @@ def _set_windows_creation_time(
         If True, also set the last write time to the same value.
     """
     # --- Windows constants (PEP8: UPPER_SNAKE_CASE) ---
-    FILE_WRITE_ATTRIBUTES = 0x00000100
-    FILE_SHARE_READ = 0x00000001
-    FILE_SHARE_WRITE = 0x00000002
-    FILE_SHARE_DELETE = 0x00000004
-    OPEN_EXISTING = 3
-    FILE_ATTRIBUTE_NORMAL = 0x00000080
-    FILE_FLAG_BACKUP_SEMANTICS = 0x02000000  # needed for directories
-    INVALID_HANDLE_VALUE = wintypes.HANDLE(-1).value
+    FILE_WRITE_ATTRIBUTES = 0x00000100 # pylint: disable=invalid-name
+    FILE_SHARE_READ = 0x00000001 # pylint: disable=invalid-name
+    FILE_SHARE_WRITE = 0x00000002 # pylint: disable=invalid-name
+    FILE_SHARE_DELETE = 0x00000004 # pylint: disable=invalid-name
+    OPEN_EXISTING = 3 # pylint: disable=invalid-name
+    FILE_ATTRIBUTE_NORMAL = 0x00000080 # pylint: disable=invalid-name
+    FILE_FLAG_BACKUP_SEMANTICS = 0x02000000  # needed for directories # pylint: disable=invalid-name
+    INVALID_HANDLE_VALUE = wintypes.HANDLE(-1).value # pylint: disable=invalid-name
 
     # Convert datetime to FILETIME (caller may pass naive; interpret as UTC)
     if dt.tzinfo is None:
@@ -635,7 +635,9 @@ def run_ezshare(sd_ip_addr:str,profiles:dict,dirs:dict,options:dict)->None:
 
     # Join the sd card wifi
     try:
-        connect_wifi_windows.connect_wifi(profiles['sd'],20,3)
+        connect_wifi_windows.connect_simple(profiles['sd'],
+                                            timeout=20,retry_interval=3,
+                                            retry_count=3)
     except ConnectionError as conn_err:
         print(f"❌ {conn_err}")
         sys.exit("Unable to connect to the SD Card Network. Aborting")
@@ -644,7 +646,7 @@ def run_ezshare(sd_ip_addr:str,profiles:dict,dirs:dict,options:dict)->None:
     # getting lists of files and folders found. The "process..." methods take care of the high level
     # logic, and leave the implementation of the actual list and download to genericized methods
     # to allow for code reuse
-
+    time.sleep(6)
     print("Processing Root, SETTINGS, and DATALOG directories, downloading corresponding files")
     process_root(s,
                 urls['root'],
@@ -671,7 +673,10 @@ def run_ezshare(sd_ip_addr:str,profiles:dict,dirs:dict,options:dict)->None:
 
     print(f"Joining {profiles['home']}")
     try:
-        connect_wifi_windows.connect_wifi(profiles['home'],20,3)
+        connect_wifi_windows.connect_simple(profiles['home'],
+                                            timeout=20,
+                                            retry_interval=3,
+                                            retry_count=3)
     except ConnectionError as conn_err:
         print(f"❌ {conn_err}")
         sys.exit("Unable to connect to the home network. Aborting")

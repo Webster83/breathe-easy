@@ -69,7 +69,7 @@ def get_shq_access_token(client_id,client_secret,verbose)-> str:
             print("Authorization successful\n")
         return 'Bearer ' + response.json()['access_token']
     except requests.RequestException as e:
-        print(f"Failed to get acces token: {e}")
+        print(f"Failed to get access token: {e}")
         print(f"uid:{payload}")
         sys.exit(1)
 
@@ -124,8 +124,6 @@ def get_files(dir_path)-> list[dict]:
     and content hash.
 
     :param str dir_path: The base directory to search for files (eg ./LatestCPAP)
-    :param str sub_path: Optional subdirectory path within dir_path to search
-    (eg "./ImportData/LatestCPAP")
 
     :return: List[dict]:
       A list of dictionaries, each containing the following keys for a file:
@@ -282,7 +280,7 @@ def process_shq_imports(import_id, token)-> None:
     try:
         response = requests.post(url, headers=headers,timeout=20)
         response.raise_for_status()
-        print(f"Files are now being processed by SleepHQ for Import ID: {id}")
+        print(f"Files are now being processed by SleepHQ for Import ID: {import_id}")
     except requests.RequestException as e:
         print(f"Failed to process the imported files: {e}")
         print(f"""But you can retry the process_files request again at a later time
@@ -336,7 +334,7 @@ def run_upload(clt_id:str, clt_sec:str, dpath:str, verbose:bool) -> None:
     '''
 
     bearer = get_shq_access_token(clt_id, clt_sec,verbose)
-
+    time.sleep(2)
     # get_files now returns a LIST of file dicts
     files_to_import = get_files(dpath)
 
@@ -352,7 +350,8 @@ def run_upload(clt_id:str, clt_sec:str, dpath:str, verbose:bool) -> None:
         print("Uploading files to SleepHQ")
 
     post_files_to_shq(import_id, bearer, files_to_import, verbose)
-
+    time.sleep(2)
+    
     if verbose:
         print("Processing files")
 
