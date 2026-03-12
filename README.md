@@ -17,17 +17,24 @@ To streamline import of ResMed Air 11 device data to SleepHQ and keep the import
 
 There is one main file to be concerned with:
 
-* sleephq_uploader.py - wrapper to make the correct calls to the modules with required and optional arguments, parsed from config.yaml. Config.yaml is automatically created upon first launch of sleep_uploader. If you wish to make changes to the config.yaml, either edit the
+* sleephq_uploader.py - wrapper to make the correct calls to the modules with required and optional arguments, parsed from config.yaml. The config.yaml is automatically created upon first launch of sleep_uploader. If you wish to make changes to the config.yaml, either edit the
 file directly, if comfortable, or delete and recreate. Please note if you should choose to delete the config.yaml file, make a note of both the client_id and client_secret values, as you will need these again. Forgot to get them? Read "API Keys? How do I get them?" below.
 
-There are several supporting python files, all are necessary, can be called separately and are documented with docstrings for some assistance in parsing the code and working to extend it.
+There are several supporting python files that can be called separately and are documented with docstrings for some assistance in parsing the code and working to extend it.
 
 These are:
 
+* ezshare_getter.py - copies files from an EZSh@are (white) SD Card. Note, RED ones have a reduced feature set, lacking the directory view that
+enables copying files from the card that are not digital camera photos. Copies and maintains the files, maintaining timestamp data of the newest
+'n' days.
 * sd_copy.py - copies and maintains timestamp data of the SD Card files for the newest 'n' days
 * shq_upload.py - uploads the CPAP data to SleepHQ using your Pro Account API keys
 * cleanup_files.py - cleans up files from the import and upload
-* generate_config_yaml.py - creates the config.yaml file, this is genericized to work with multiple scripts and can be passed a template dictionary to both capture user input for the config, and then to finalize the creation of a config.yaml (name can be passed as an argument if you wish to make it something else)
+* generate_config_yaml.py - creates the config.yaml file, this is genericized to work with multiple scripts and can be passed a template dictionary
+to both capture user input for the config, and then to finalize the creation of a config.yaml (name can be passed as an argument if you wish
+to make it something else)
+* connect_wifi_windows.py - allows the connection to a wireless network profile in a way that validates the network is in range and successfully joins.
+As the EZSh@re wifi network often disappears from Windows SSID cache, it is important to rescan for the available networks when trying to switch
 
 ### Parameters for each module
 
@@ -65,6 +72,32 @@ Does not accept argparse arguments at this time
 #### cleanup_files.py
 
 Does not accept argparse arguments at this time
+
+#### ezshare_getter.py
+
+[--ip_address IP_ADDRESS]
+                          IP Address of the EZSh@re card
+[--root_dir ROOT_DIR]
+                          The directory dir? paramater (usually 'dir=A:')
+[--sd_ssid SD_SSID]
+                          The wireless network name of the SD Card (out of the box ez Share)
+[--save_to SAVE_TO]
+                          The local file path in which to save the copied files
+--overwrite
+                          Include this flag to overwrite existing data. Do this if you do not
+                          delete your files before running each time
+[--home_ssid HOME_SSID]
+                          The internet-connected wireless network that you would normally use
+--n_days
+                          The number of days to download data for
+--verbose
+                          Include this option to show verbose output during script execution
+
+#### connect_wifi_windows.py
+
+usage: python connect_wifi_windows.py {SSID_TO_CONNECT_TO}
+Example, for the wireless network BowlOfPetunias you would use
+python connect_wifi_windows.py BowlOfPetunias
 
 ### API keys? Where do I get them
 
