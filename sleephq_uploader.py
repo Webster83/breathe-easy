@@ -19,7 +19,7 @@ from yaml import safe_load
 import cleanup_files
 import ezshare_getter
 import sd_copy
-import shq_upload
+import shq_uploader
 from generate_config_yaml import gather_user_input, generate_config_yaml
 
 def load_config() -> dict:
@@ -190,7 +190,7 @@ def upload_data(global_dict:dict,upload_dict:dict)->None:
     cpap_data_path = os.getcwd()+os.sep+global_dict["save_to_path"]
     print("⏫ uploading to Sleep HQ Cloud ☁️")
 
-    shq_upload.run_upload(upload_dict['sleephq_client_id'],
+    shq_uploader.run_upload(upload_dict['sleephq_client_id'],
                           upload_dict['sleephq_client_secret'],
                           cpap_data_path,
                           global_dict['verbose'])

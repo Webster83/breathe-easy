@@ -575,8 +575,8 @@ def process_datalog(
         ymd = d["name"]  # e.g., '20260216'
         print(f"\n[DATALOG]/{ymd} Listing {d['href']}")
         files, subdirs = list_directory(s, d["href"], verbose=options['verbose'])
-        if options['verbose']:
-            print(f"     found: {len(files)} files; {len(subdirs)} nested dirs (ignored)")
+        # if options['verbose']:
+        print(f"     found: {len(files)} files; {len(subdirs)} nested dirs (ignored)")
 
         # Ensure subfolder locally: <dir>/<YYYYMMDD>/
         dated_dir = dir_path / ymd
