@@ -1,3 +1,8 @@
+'''shq_uploader.py automates the process of uploading files to Sleep HQ
+Written by BChap
+Last updated: 20260316
+'''
+
 import argparse
 import os
 from sleephq import SleepHQ
@@ -26,16 +31,17 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 def run_upload(client_id,client_secret,data_dir_path,verbose):
+    '''runs the upload process'''
     # create SleepHQ connection
     shq = SleepHQ(client_id,client_secret,verbose)
 
     # create a new import
     print("Creating Import ID")
-    import_id = shq.create_upload()
+    shq.create_upload()
 
     # add data_dir_path to the files to import
-    files = shq.SHQImports.get_files(data_dir_path)
-    shq.add_files(files)
+    shq.gather_files(data_dir_path)
+    shq.add_files()
 
     #process the upload
     shq.process_upload()
