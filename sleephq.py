@@ -1,9 +1,9 @@
-"""
+'''
 SleepHQ V1 API Python client
 Written by BChap
-V1 reference pulled 2026-03-16
+V1 reference pulled 2026-03-16 from https://sleephq.com/api-docs/index.html
 Last Updated 20260316
-"""
+'''
 
 # must be at the beginning:
 from __future__ import annotations
@@ -25,7 +25,7 @@ try:
 except ImportError:
     from typing_extensions import NotRequired
 
-
+# Import Windows Truststore for Proxy/MITM DPI via something like NetSkope
 if sys.platform.startswith("win"):
     try:
         import truststore  # type: ignore
@@ -33,11 +33,10 @@ if sys.platform.startswith("win"):
     except ImportError as e:
         print(f"Could not inject truststore: {e}")
 
-
 class SleepHQ:
-    """
+    '''
     High-level client for SleepHQ API.
-    """
+    '''
 
     def __init__(self, api_client: str, api_secret: str, verbose: bool = False) -> None:
         self.api_client = api_client
@@ -60,14 +59,12 @@ class SleepHQ:
         if self.verbose:
             print(f"Collected {len(self.files_to_upload)} files from {dir_path}")
 
-    # ------------------------------------------------------------------
     def create_upload(self) -> str:
         """Creates an import request and stores the import object."""
         self.import_req = SleepHQ.SHQImports(self)
         upload_id = self.import_req.create_import(f"Breathe_Easy {self.date_time}", self)
         return upload_id
 
-    # ------------------------------------------------------------------
     def add_files(self,
                   file_collection: Optional[List["SleepHQ.SHQImports.FileSpec"]] = None
                   ) -> None:
@@ -86,7 +83,6 @@ class SleepHQ:
 
         self.import_req.add_files_to_import(self, file_collection)
 
-    # ------------------------------------------------------------------
     def process_upload(self) -> None:
         """Triggers SleepHQ to process files for the current import."""
         if self.import_req is None:
@@ -94,12 +90,13 @@ class SleepHQ:
         self.import_req.process_upload(self)
 
     def validate_upload(self) -> None:
+
         ''' validates SHQ Upload success'''
+
         if self.import_req is None:
             raise RuntimeError("No import exists. Call create_upload() first.")
         self.import_req.validate_upload(self)
 
-    # ------------------------------------------------------------------
     def __get_bearer(self) -> str:
         payload = {
             "client_id": self.api_client,
@@ -117,13 +114,21 @@ class SleepHQ:
             print(f"Failed to get access token: {e}")
             sys.exit(1)
 
-    # ------------------------------------------------------------------
+    def refresh_token(self) -> None:
+
+        '''Refreshes OAuth bearer token.'''
+
+        self.bearer = self.__get_bearer()
+        if self.verbose:
+            print("Bearer token refreshed")
+
     def __repr__(self) -> str:
         return f"{self.me.name}"
 
-    # ======================= NESTED CLASSES ============================
     class Me:
+
         '''implements me api endpoints'''
+
         def __init__(self, outer: "SleepHQ") -> None:
             prof = self.__get(outer)
             self.id = prof["id"]
@@ -145,9 +150,13 @@ class SleepHQ:
                 sys.exit(1)
 
     class SHQImports:
+
         '''implements Imports api endpoints'''
+
         class FileSpec(TypedDict):
+
             '''FileSpec for SleepHQ-bound file uploads'''
+
             filepath: str
             filename: str
             content_hash: str
@@ -157,7 +166,6 @@ class SleepHQ:
             self.import_id = ""
             self.add_list_url = f"{outer.base_url}teams/{outer.team_id}/imports"
 
-        # --------------------------------------------------------------
         def create_import(self, import_name: str, outer: "SleepHQ") -> str:
             '''creates an import ID'''
             headers = {"Authorization": outer.bearer, "Accept": "application/json"}
@@ -184,32 +192,63 @@ class SleepHQ:
 
             print(f"Uploading {len(files)} files to SleepHQ...")
 
+            max_retries = 3
+
             for idx, f in enumerate(files, start=1):
                 local_path = os.path.join(f["filepath"], f["filename"])
                 shq_path = f.get("path", "./")
                 form_data = {
                     "name": f["filename"],
                     "path": shq_path,
-                    "content_hash": f["content_hash"]
+                    "content_hash": f["content_hash"],
                 }
 
-                try:
-                    with open(local_path, "rb") as fh:
-                        r = requests.post(
-                            url,
-                            headers=headers,
-                            data=form_data,
-                            files={"file": (f["filename"], fh, "application/octet-stream")},
-                            timeout=120,
-                        )
-                    r.raise_for_status()
-                except requests.RequestException as e:
-                    print(f"Failed uploading {f['filename']}: {e}")
-                    sys.exit(1)
-                finally:
-                    if idx == len(files):
-                        print("All files uploaded. SleepHQ is preparing to process them...")
-                    time.sleep(0.25)
+                retries = 0
+                while True:
+                    try:
+                        with open(local_path, "rb") as fh:
+                            r = requests.post(
+                                url,
+                                headers=headers,
+                                data=form_data,
+                                files={"file": (f["filename"], fh, "application/octet-stream")},
+                                timeout=120,
+                            )
+
+                        r.raise_for_status()
+                        break  # SUCCESS → exit retry loop
+
+                    except (requests.exceptions.ConnectionError,
+                            requests.exceptions.ChunkedEncodingError,
+                            ConnectionResetError) as e:
+
+                        if retries < max_retries:
+                            print(f"[WARN] Connection dropped while uploading {f['filename']}." \
+                                "Retrying...")
+
+                            # regenerate token
+                            outer.refresh_token()
+
+                            retries += 1
+                            time.sleep(0.5 * (2 ** (retries - 1)))
+                            continue  # retry upload
+
+                        # Out of retries → give up
+                        raise RuntimeError(
+                            f"Upload failed after {max_retries} retries for {f['filename']}: {e}"
+                        ) from e
+
+                    except requests.RequestException as e:
+                        # Non‑retryable errors (400/403/etc.)
+                        raise RuntimeError(
+                            f"Failed uploading {f['filename']} due to non-retryable error: {e}"
+                        ) from e
+
+                # end while True retry loop
+
+                if idx == len(files):
+                    print("All files uploaded successfully. SleepHQ will begin processing soon.")
+                time.sleep(0.25)
 
         def process_upload(self, outer: "SleepHQ") -> None:
             ''' processes the uploads '''
@@ -229,10 +268,10 @@ class SleepHQ:
                 sys.exit(1)
 
         def validate_upload(self, outer: "SleepHQ") -> None:
-            """
+            '''
             Validates the state of the import by querying /imports/{id}.
             Ensures HTTP request succeeded and failed_reason is null.
-            """
+            '''
 
             if not self.import_id:
                 raise RuntimeError("Call create_import() first before validate_upload().")
@@ -273,7 +312,9 @@ class SleepHQ:
 
         @staticmethod
         def compute_sleephq_content_hash(filepath: str) -> str:
+
             '''computes the file hash for SleepHQ file uploads'''
+
             md5 = hashlib.md5()
             fname = os.path.basename(filepath).encode("utf-8")
             with open(filepath, "rb") as f:
@@ -282,10 +323,12 @@ class SleepHQ:
             md5.update(fname)
             return md5.hexdigest()
 
-        # --------------------------------------------------------------
+
         @staticmethod
         def get_files(dir_path: str) -> List["SleepHQ.SHQImports.FileSpec"]:
+
             '''build a file collection of files to associate with the upload'''
+
             base = pathlib.Path(dir_path)
             results: List[SleepHQ.SHQImports.FileSpec] = []
             for p in base.rglob("*"):
@@ -306,10 +349,10 @@ class SleepHQ:
                         )
             return results
 
-# ----------------------------------------------------------------------
-
 def main() -> None:
+
     '''main CLI (for testing)'''
+
     key = os.getenv("SLEEPHQ_CLIENT_ID")
     secret = os.getenv("SLEEPHQ_CLIENT_SECRET")
     if not key or not secret:
@@ -320,8 +363,6 @@ def main() -> None:
     print(f"Logged in as: {repr(shq)}")
 
     shq.create_upload()
-
-    # NEW FLOW: no assignment needed
     shq.gather_files("./LatestCPAP")
     shq.add_files()
     shq.process_upload()

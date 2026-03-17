@@ -24,6 +24,7 @@ There are several supporting python files that can be called separately and are 
 
 These are:
 
+* sleephq.py - defines SleepHQ class, along with API entry points. Focused at the moment on import feature, but will grow over time
 * ezshare_getter.py - copies files from an EZSh@are (white) SD Card. Note, RED ones have a reduced feature set, lacking the directory view that
 enables copying files from the card that are not digital camera photos. Copies and maintains the files, maintaining timestamp data of the newest
 'n' days.
