@@ -39,6 +39,10 @@ As the EZSh@re wifi network often disappears from Windows SSID cache, it is impo
 
 ### Parameters for each module
 
+#### sleephq
+
+Does not accept any argparse parameters. This is a library file to start implementing classful approach to SleepHQ
+
 #### sd_copy
 
 --sd-root SD_ROOT     SD root (e.g., "E:\")
