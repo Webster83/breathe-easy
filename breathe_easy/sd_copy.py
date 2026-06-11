@@ -16,13 +16,17 @@ Preserves (Windows FAT32 -> NTFS):
 
 Examples (PowerShell):
   # Copy newest 1 DATALOG folder (default)
-  python "C:\Users\bc0112\Desktop\CPAP-UPLOAD.py" --sd-root "E:\" --dest-root "C:\Users\bc0112\Desktop\LatestCPAP" --verbose
+  python "C:\Users\bc0112\Desktop\CPAP-UPLOAD.py" 
+  --sd-root "E:\" --dest-root "C:\Users\bc0112\Desktop\LatestCPAP" --verbose
 
   # Copy newest 3 DATALOG folders
-  python "C:\Users\bc0112\Desktop\CPAP-UPLOAD.py" --sd-root "E:\" --dest-root "C:\Users\bc0112\Desktop\LatestCPAP" --datalog-latest-n 3 --verbose
+  python "C:\Users\bc0112\Desktop\CPAP-UPLOAD.py" 
+  --sd-root "E:\" --dest-root "C:\Users\bc0112\Desktop\LatestCPAP" --datalog-latest-n 3 --verbose
 
   # Dry run
-  python "C:\Users\bc0112\Desktop\CPAP-UPLOAD.py" --sd-root "E:\" --dest-root "C:\Users\bc0112\Desktop\LatestCPAP" --datalog-latest-n 3 --dry-run --verbose
+  python "C:\Users\bc0112\Desktop\CPAP-UPLOAD.py" 
+  --sd-root "E:\" --dest-root "C:\Users\bc0112\Desktop\LatestCPAP" 
+  --datalog-latest-n 3 --dry-run --verbose
 """
 
 from __future__ import annotations
@@ -32,10 +36,14 @@ import hashlib
 import logging
 import os
 import re
+import logging
 from datetime import datetime
 from pathlib import Path
 from shutil import copy2
 from typing import Optional, List, Tuple
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 # FAT32 timestamp granularity is often coarse (commonly ~2 seconds).
 DEFAULT_TIME_SLACK = 3.0
@@ -48,11 +56,11 @@ if os.name == "nt":
     import ctypes
     from ctypes import wintypes
 
-    FILE_READ_ATTRIBUTES = 0x0080
-    FILE_WRITE_ATTRIBUTES = 0x0100
-    OPEN_EXISTING = 3
-    FILE_FLAG_BACKUP_SEMANTICS = 0x02000000  # required to open directories
-    INVALID_HANDLE_VALUE = wintypes.HANDLE(-1).value
+    FILE_READ_ATTRIBUTES = 0x0080 # pylint: disable=invalid-name
+    FILE_WRITE_ATTRIBUTES = 0x0100 # pylint: disable=invalid-name
+    OPEN_EXISTING = 3 # pylint: disable=invalid-name
+    FILE_FLAG_BACKUP_SEMANTICS = 0x02000000  # required to open directories # pylint: disable=invalid-name
+    INVALID_HANDLE_VALUE = wintypes.HANDLE(-1).value # pylint: disable=invalid-name
 
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
@@ -132,7 +140,7 @@ if os.name == "nt":
             c, a, w = get_filetimes(src)
             set_filetimes(dst, c, a, w)
         except Exception as e:
-            logging.warning(f"[TIMES] Could not preserve created time for: {dst} ({e})")
+            logging.warning("[TIMES] Could not preserve created time for: %s (%s)",dst,e)
 
     def filetime_to_unix_seconds(ft: wintypes.FILETIME) -> float:
         # FILETIME: 100-ns ticks since 1601-01-01
@@ -225,13 +233,9 @@ def pick_latest_subfolders(datalog_dir: Path, n: int) -> List[Path]:
 
 
 # =============================================================================
-# Logging / verification / hashing
-# =============================================================================
-def setup_logging(verbose: bool) -> None:
-    logging.basicConfig(
-        level=logging.DEBUG if verbose else logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s"
-    )
+# verification / hashing
+# ============================================================================
+
 
 def sha256_file(path: Path, chunk: int = 1024 * 1024) -> str:
     h = hashlib.sha256()
@@ -282,7 +286,7 @@ def verify_copy(
 # =============================================================================
 def ensure_dir(path: Path, dry_run: bool) -> None:
     if not path.exists():
-        logging.debug(f"Creating directory: {path}")
+        logging.debug("Creating directory: %s", path)
         if not dry_run:
             path.mkdir(parents=True, exist_ok=True)
 
@@ -299,7 +303,7 @@ def copy_file(
     verify_created: bool
 ) -> None:
     ensure_parent(dst, dry_run)
-    logging.info(f"COPY  {src}  ->  {dst}")
+    logging.info("COPY  %s  ->  %s",src, dst)
     if dry_run:
         return
 
@@ -311,10 +315,11 @@ def copy_file(
         preserve_windows_times(src, dst)
 
     if verify:
-        ok, reason = verify_copy(src, dst, slack=slack, verify_hash=verify_hash, verify_created=verify_created)
+        ok, reason = verify_copy(src, dst, slack=slack, verify_hash=verify_hash,
+                                 verify_created=verify_created)
         if not ok:
             raise IOError(f"Verification failed: {dst} ({reason})")
-        logging.debug(f"VERIFY OK: {dst}")
+        logging.debug("VERIFY OK: %s", dst)
 
 def restore_directory_timestamps(dst_dir: Path, src_dir: Path, dry_run: bool) -> None:
     """
@@ -331,7 +336,7 @@ def restore_directory_timestamps(dst_dir: Path, src_dir: Path, dry_run: bool) ->
             st = src_dir.stat()
             os.utime(dst_dir, (st.st_atime, st.st_mtime))
     except Exception as e:
-        logging.warning(f"Could not restore directory timestamps for {dst_dir}: {e}")
+        logging.warning("Could not restore directory timestamps for %s: %s", dst_dir, e)
 
 def copy_tree(
     src_dir: Path,
@@ -398,8 +403,8 @@ def run_backup(
     slack: float
 ) -> None:
     """
-    run_backup takes in all the necessary parameters and calls the various helper functions to create
-    and import of the data from the CPAP SDCard
+    run_backup takes in all the necessary parameters and calls the various helper functions
+    to create and import of the data from the CPAP SDCard
     
     :param sd_root: The root directory of the CPAP SDCard. Usually Drive Letter or Mountpoint
     :type sd_root: Path
@@ -426,8 +431,8 @@ def run_backup(
     :rtype: None
     """
     print(f"Copying contents of SD card: {sd_root} to: {dest_root}")
-    sd_root = sd_root.resolve()
-    dest_root = dest_root.resolve()
+    sd_root = Path(sd_root).resolve()
+    dest_root = Path(dest_root).resolve()
 
     if not sd_root.exists():
         raise SystemExit(f"SD root does not exist: {sd_root}")
@@ -435,16 +440,16 @@ def run_backup(
     if not dry_run:
         dest_root.mkdir(parents=True, exist_ok=True)
 
-    logging.info(f"Source (SD):        {sd_root}")
-    logging.info(f"Destination:        {dest_root}")
-    logging.info(f"DATALOG folder:     {datalog_name}")
-    logging.info(f"SETTINGS folder:    {settings_name}")
-    logging.info(f"DATALOG newest N:   {days_to_import}")
-    logging.info(f"Dry-run:            {dry_run}")
-    logging.info(f"Verify:             {verify}")
-    logging.info(f"Verify hash:        {verify_hash}")
-    logging.info(f"Verify created:     {verify_created}")
-    logging.info(f"Time slack (sec):   {slack}")
+    logging.info("Source (SD):        %s", sd_root)
+    logging.info("Destination:        %s", dest_root)
+    logging.info("DATALOG folder:     %s", datalog_name)
+    logging.info("SETTINGS folder:    %s", settings_name)
+    logging.info("DATALOG newest N:   %s", days_to_import)
+    logging.info("Dry-run:            %s", dry_run)
+    logging.info("Verify:             %s", verify)
+    logging.info("Verify hash:        %s", verify_hash)
+    logging.info("Verify created:     %s", verify_created)
+    logging.info("Time slack (sec):   %s", slack)
 
     total = 0
 
@@ -452,29 +457,31 @@ def run_backup(
     logging.info("Step 1: Root-level files (non-recursive)...")
     for item in sd_root.iterdir():
         if item.is_file() and not item.is_symlink():
-            copy_file(item, dest_root / item.name, dry_run, slack, verify, verify_hash, verify_created)
+            copy_file(item, dest_root / item.name, dry_run, slack, verify,
+                     verify_hash, verify_created)
             total += 1
 
     # 2) SETTINGS
     settings_dir = sd_root / settings_name
-    logging.info(f"Step 2: SETTINGS path: {settings_dir}")
+    logging.info("Step 2: SETTINGS path: %s", settings_dir)
     if settings_dir.exists() and settings_dir.is_dir():
         logging.info("Copying SETTINGS/ recursively...")
-        total += copy_tree(settings_dir, dest_root / settings_name, dry_run, slack, verify, verify_hash, verify_created)
+        total += copy_tree(settings_dir, dest_root / settings_name, dry_run,
+                           slack, verify, verify_hash, verify_created)
     else:
-        logging.warning(f"SETTINGS folder not found (skipping): {settings_dir}")
+        logging.warning("SETTINGS folder not found (skipping): %s", settings_dir)
 
     # 3) N newest under DATALOG
     datalog_dir = sd_root / datalog_name
-    logging.info(f"Step 3: DATALOG path:  {datalog_dir}")
+    logging.info("Step 3: DATALOG path:  %s", datalog_dir)
     if datalog_dir.exists() and datalog_dir.is_dir():
         latest_folders = pick_latest_subfolders(datalog_dir, days_to_import)
         if not latest_folders:
-            logging.warning(f"No subfolders found in DATALOG (skipping): {datalog_dir}")
+            logging.warning("No subfolders found in DATALOG (skipping): %s", datalog_dir)
         else:
             logging.info("Selected DATALOG subfolders (newest -> oldest):")
             for p in latest_folders:
-                logging.info(f"  - {p.name}")
+                logging.info("  - %s", p.name)
 
             for folder in latest_folders:
                 total += copy_tree(
@@ -486,9 +493,9 @@ def run_backup(
             # Restore timestamps on destination DATALOG container folder itself
             restore_directory_timestamps(dest_root / datalog_name, datalog_dir, dry_run)
     else:
-        logging.warning(f"DATALOG folder not found (skipping): {datalog_dir}")
+        logging.warning("DATALOG folder not found (skipping): %s", datalog_dir)
 
-    logging.info(f"Done. Total files copied: {total}")
+    logging.info("Done. Total files copied: %s", total)
 
 
 def parse_args() -> argparse.Namespace:
@@ -499,25 +506,32 @@ def parse_args() -> argparse.Namespace:
     :rtype: Namespace
     """
     p = argparse.ArgumentParser(
-        description="Copy root files, SETTINGS, and newest N DATALOG subfolders; preserve created/modified times and verify."
+        description="Copy root files, SETTINGS, and newest N DATALOG subfolders; preserve " \
+        "created/modified times and verify."
     )
     p.add_argument("--sd-root", required=True, help='SD root (e.g., "E:\\")')
-    p.add_argument("--dest-root", required=True, help='Destination root (e.g., "C:\\Users\\...\\LatestCPAP")')
+    p.add_argument("--dest-root", required=True,
+                    help='Destination root (e.g., "C:\\Users\\...\\LatestCPAP")')
 
-    p.add_argument("--datalog-name", default="DATALOG", help="DATALOG folder name (default: DATALOG)")
-    p.add_argument("--settings-name", default="SETTINGS", help="SETTINGS folder name (default: SETTINGS)")
+    p.add_argument("--datalog-name", default="DATALOG",
+                    help="DATALOG folder name (default: DATALOG)")
+    p.add_argument("--settings-name", default="SETTINGS",
+                    help="SETTINGS folder name (default: SETTINGS)")
 
     p.add_argument("--days_to_import", type=int, default=1,
-                   help="How many DATALOG subfolders (days) to copy (default: 1), from most-recent to older")
+                    help="How many DATALOG subfolders (days) to copy (default: 1)," \
+                   " from most-recent to older")
 
     p.add_argument("--dry-run", action="store_true", help="Print actions without copying anything")
-    p.add_argument("--verbose", action="store_true", help="Verbose logging")
 
-    p.add_argument("--no-verify", action="store_true", help="Disable post-copy verification")
-    p.add_argument("--verify-hash", action="store_true", help="Verify SHA-256 hash (slow, strongest)")
-    p.add_argument("--verify-created", action="store_true", help="Verify Date created too (Windows-only)")
+    p.add_argument("--no-verify", action="store_true",
+                    help="Disable post-copy verification")
+    p.add_argument("--verify-hash", action="store_true",
+                    help="Verify SHA-256 hash (slow, strongest)")
+    p.add_argument("--verify-created", action="store_true",
+                    help="Verify Date created too (Windows-only)")
     p.add_argument("--time-slack", type=float, default=DEFAULT_TIME_SLACK,
-                   help=f"Allowed timestamp delta in seconds (default {DEFAULT_TIME_SLACK})")
+                    help=f"Allowed timestamp delta in seconds (default {DEFAULT_TIME_SLACK})")
     return p.parse_args()
 
 
@@ -526,7 +540,6 @@ def main() -> None:
     Main program logic called when directly executing
     """
     args = parse_args()
-    setup_logging(args.verbose)
 
     run_backup(
         sd_root=Path(args.sd_root),

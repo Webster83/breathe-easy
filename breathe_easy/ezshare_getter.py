@@ -12,6 +12,7 @@ import ctypes
 import os
 import sys
 import time
+import logging
 from ctypes import wintypes
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
@@ -28,7 +29,9 @@ from bs4.element import NavigableString
 from yaml import safe_load
 
 # First-Party Imports
-import connect_wifi_windows
+import breathe_easy.connect_wifi_windows as connect_wifi_windows
+
+logger = logging.getLogger(__name__)
 
 def load_config(config: str) -> dict:
     """

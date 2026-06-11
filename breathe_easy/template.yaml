@@ -1,0 +1,28 @@
+global_options:
+  save_to_path: Latest_xPAP_Data  # Which subfolder stores CPAP data
+  download_from_ezshare: true     # If false, use local SD copy instead
+  copy_from_local_sd_card: false  # Useful if failure was upload-related
+  number_of_days: 1               # Number of nights of data to copy
+  cleanup_after_upload: false     # Delete temp folder after upload?
+
+cleanup_options:
+  files: []     # Files to remove during cleanup
+  folders: []   # Folders to remove during cleanup
+
+sd_options:
+  sd_path: "f:/"     # CPAP card mount point
+  test_only: false   # Dry run (no actual copying)
+
+shq_options:
+  client_id: "your SleepHQ Client ID goes here"         # See README
+  client_secret: "your SleepHQ Client Secret goes here" # See README
+
+ezshare:
+  ip_address: 192.168.4.1   # EZShare card IP
+  dir: "dir=A:"              # Directory query string
+  card_ssid: "ez share"      # WiFi name
+  card_wpa2: "88888888"      # WiFi password (not currently used)
+  home_ssid: "OurHouse"      
+  home_wpa2: "InTheMiddleOfOurStreet"
+  overwrite: true            # Overwrite existing folders?
+

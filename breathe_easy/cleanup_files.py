@@ -13,6 +13,10 @@ Last Revision: 20260203
 
 import os
 import shutil
+import logging
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 def cleanup_folder(folder_path:str)-> None:
     """Cleans up generated files from previous runs.

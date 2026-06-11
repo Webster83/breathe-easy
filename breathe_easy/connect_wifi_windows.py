@@ -24,7 +24,10 @@ import platform
 import subprocess
 import sys
 import time
+import logging
 from typing import Optional, Tuple, List
+
+logger = logging.getLogger(__name__)
 
 # =========================
 # Shell / OS helpers
@@ -171,6 +174,7 @@ def _open_wlan() -> wintypes.HANDLE:
     h_client = wintypes.HANDLE()
     rc = _wlan.WlanOpenHandle(2, None, ctypes.byref(negotiated), ctypes.byref(h_client))
     if rc != ERROR_SUCCESS:
+        logging.error("Failed to open wlan (_open_wlan)")
         raise RuntimeError(f"WlanOpenHandle rc={rc}")
     return h_client
 
@@ -305,6 +309,8 @@ def parse_visible_ssids(raw: str) -> List[str]:
             ssid = s.split(":", 1)[1].strip()
             if ssid:
                 ssids.append(ssid.lower())
+                logging.debug("Appending %s to ssids list",ssid)
+    logging
     return ssids
 
 
