@@ -6,10 +6,12 @@ __pycache__/
 # Personal files
 # Folder where downloaded CPAP data is stored, can be regenerated
 LatestCPAP*/
+v1_0/
 # User configuration files
 config.yaml
 # Test configuration files generation
 *.yaml.test
+*.backup
 
 # C extensions
 *.so
@@ -197,6 +199,8 @@ cython_debug/
 .cursorindexingignore
 
 # Scratch files
-.Scratch/
+_scratch/
 SDBACKUP/
+EndOfCPAP/
 *.csv
+LatestBipap/
