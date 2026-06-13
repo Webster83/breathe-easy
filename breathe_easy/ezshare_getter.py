@@ -66,13 +66,16 @@ def ensure_dir(path: Path):
 
 def script_dir(verbose: bool = False) -> Path:
     """Returns the current script's directory location"""
-    try:
+    
+    if getattr(sys, "frozen", False):
+        # Running as a bundled executable
+        p = Path(sys.executable).resolve().parent
+    else:
         p = Path(__file__).resolve().parent
-        if verbose:
-            print(p)
-        return p
-    except NameError:
-        return Path.cwd()
+
+    if verbose:
+        print(f"[base dir] {p}")
+    return p
 
 def is_yyyymmdd(name: str) -> bool:
     """Determines if the name is of date ISO8601 format
@@ -619,6 +622,7 @@ def run_ezshare(sd_ip_addr:str,profiles:dict,dirs:dict,options:dict)->None:
 
        # Prepare local output dirs
     base_out = script_dir(options['verbose'])/dirs['save']
+    print(f"files are being save to {base_out}")
     directories = {
         "out_root": base_out,
         "out_settings": base_out/"SETTINGS",

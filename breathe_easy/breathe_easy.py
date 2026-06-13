@@ -10,7 +10,6 @@ from datetime import datetime
 
 from yaml import safe_load
 
-
 import breathe_easy.call_robocopy as call_robocopy
 import breathe_easy.cleanup_files as cleanup_files
 import breathe_easy.sd_copy as sd_copy
@@ -19,17 +18,52 @@ from breathe_easy.generate_config_yaml import make_config, prune_keys
 from breathe_easy.ezshare_getter import run_ezshare
 from breathe_easy.sleephq_upload import sleephq_upload
 
+def get_base_dir():
+
+    ''' gets base directory depending on execution type'''
+
+    if getattr(sys,'frozen',False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def get_resource_path(filename):
+
+    '''returns resource path for PyInstaller'''
+
+    base_path = getattr(sys, '_MEIPASS', os.path.abspath("."))
+    return os.path.join(base_path, filename)
+
+
+BASEDIR = get_base_dir()
+CONFIGPATH = os.path.join(BASEDIR,'config.yaml')
+LOGDIR = os.path.join(BASEDIR,'logs')
+TEMPLATEDEST= os.path.join(BASEDIR,'template.yaml')
+TEMPLATEBUND = get_resource_path("template.yaml")
+
+if not os.path.exists(TEMPLATEDEST):
+    print("Creating template.yaml from bundled copy...")
+
+    with open(TEMPLATEBUND,"r", encoding="utf-8") as src:
+        with open(TEMPLATEDEST, "w", encoding="utf-8") as dst:
+            dst.write(src.read())
+
+
+log_file = os.path.join(LOGDIR,"Breathe_Easy_v2_"
+    +datetime.now().strftime("%Y%m%d%H%M%S")
+    +".log")
+os.makedirs(LOGDIR,exist_ok=True)
+
 # Set up logging
 
 logger = logging.getLogger("breathe_easy")
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
-    filename="Breathe_Easy_v2_"
-    +datetime.now().strftime("%Y%m%d%H%M%S")
-    +".log",
+    filename=log_file,
     force=True
 )
+logger.info("<---- Starting Run ---->")
 
 def parse_args():
 
@@ -60,7 +94,6 @@ def parse_args():
 
     return parser.parse_args()
 
-
 def load_config() -> dict:
 
     '''
@@ -73,7 +106,7 @@ def load_config() -> dict:
     '''
 
     # Open config.yaml and load in data
-    with open("config.yaml", "r", encoding="utf-8") as f:
+    with open(CONFIGPATH, "r", encoding="utf-8") as f:
         config = safe_load(f)
     return config
 
@@ -163,10 +196,10 @@ def breathe_easy():
     # Check if config.yaml exists, and if so, load it. If not, call the template generator with
     # the configuration template dict
 
-    if not os.path.exists('config.yaml'):
+    if not os.path.exists(CONFIGPATH):
         logger.info("config.yaml not found. Creating...")
         print("config.yaml not found in current working directory. Let's create one now")
-        make_config()
+        make_config(TEMPLATEDEST)
         print("config.yaml created. Proceeding to load configuration and run the program.")
     else:
         logger.info("config.yaml found")
@@ -233,7 +266,7 @@ def breathe_easy():
 
         directories={
             'root':ezshare_params['dir'],
-            'save':global_params['save_to_path'],
+            'save':os.path.join(BASEDIR,global_params['save_to_path']),
         }
 
         options={
@@ -255,7 +288,7 @@ def breathe_easy():
         print("📂Running SD Card data import...")
 
         sd_copy.run_backup(sd_params['sd_path'],
-                           global_params['save_to_path'],
+                           os.join.path(BASEDIR,global_params['save_to_path']),
                            'DATALOG',
                            'SETTINGS',
                            global_params['number_of_days'],
@@ -265,7 +298,7 @@ def breathe_easy():
 
     if not global_params.get('no_shq_upload'):  # key can be None or set to false
                                                 # and the upload will run
-        print(global_params['no_shq_upload'])
+        global_params['save_to_path'] = os.path.join(BASEDIR,global_params['save_to_path'])
         sleephq_upload(global_params,upload_params)
 
     # ----- Robo-copy files to SD card (local backup of EZ-Sh@re)
@@ -307,6 +340,8 @@ def breathe_easy():
 
     logger.info("All operations completed")
     print("🏁 All operations completed.")
+    logger.info("<---- Ending Run ---->")
+    logging.shutdown()
 
     time.sleep(5)  # Pause to allow user to see final messages before terminal closes.
                            # 15 seconds was too long.python

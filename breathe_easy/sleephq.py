@@ -31,7 +31,7 @@ import time
 import logging
 import hashlib
 from typing import Optional, List
-from datetime import date
+from datetime import datetime
 from pathlib import Path
 
 import requests
@@ -507,7 +507,7 @@ class SleepHQ:
 
     def create_import(self,profile:SleepHQProfile):
         '''creates a SleepHQImport'''
-        generate_name = f"Breathe-Easy=V2_{date.today().isoformat()}"
+        generate_name = f"Breathe_Easy_V2_{datetime.now().strftime('%Y%m%d-%H:%M')}"
         shq_import = SleepHQImport(profile.current_team_id,
                         name=generate_name,
                         mask_id=profile.user_default_mask_id,

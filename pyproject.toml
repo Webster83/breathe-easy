@@ -7,13 +7,15 @@ build-backend = "setuptools.build_meta"
 name = "breathe_easy"
 version = "2.0.0"
 requires-python = ">=3.9"
-dependencies = []
+dependencies = [
+    "PyYAML",
+    "ruamel.yaml"
+]
+authors = [{ name = "BChap - SleepHQ Community Member" }]
 
 [project.scripts]
 breathe_easy = "breathe_easy.breathe_easy:main"
 
-[tool.setuptools]
-packages = ["breathe_easy"]
-
-[tool.setuptools.package-dir]
-breathe_easy = "."
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["breathe_easy*"]

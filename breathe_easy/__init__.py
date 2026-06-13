@@ -15,6 +15,7 @@ from .config import (
 )
 
 from .sleephq import SleepHQ
+from .breathe_easy import main
 
 __all__ = [
     "SleepHQ",
