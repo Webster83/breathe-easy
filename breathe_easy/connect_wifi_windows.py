@@ -2,7 +2,7 @@
 """
 connect_wifi_windows.py
 author: BChap
-Latest Revision Date: 20260222
+Latest Revision Date: 20260613
 
 Forces a Wi‑Fi rescan on Windows via wlanapi.dll (WlanScan) and connects to a saved profile.
 - Supports two readback modes:
@@ -301,7 +301,9 @@ def get_visible_ssids_via_api(
 # =========================
 
 def parse_visible_ssids(raw: str) -> List[str]:
+
     """Parse SSIDs from `netsh wlan show networks mode=Bssid` output (lowercased)."""
+
     ssids: List[str] = []
     for line in raw.splitlines():
         s = line.strip()
@@ -309,8 +311,7 @@ def parse_visible_ssids(raw: str) -> List[str]:
             ssid = s.split(":", 1)[1].strip()
             if ssid:
                 ssids.append(ssid.lower())
-                logging.debug("Appending %s to ssids list",ssid)
-    logging
+                logger.debug("Appending %s to ssids list",ssid)
     return ssids
 
 
@@ -360,11 +361,13 @@ def scan_available_networks(
         iface = _choose_interface(interfaces, interface_hint)
 
         for attempt in range(1, max_attempts + 1):
-            print(
-                f"📡 Forcing Wi‑Fi scan"
-                f"{f' on {iface.strInterfaceDescription!r}' if iface else ''}"
-                f"(Attempt {attempt}/{max_attempts})"
-            )
+            #    print(
+            #    f"📡 Forcing Wi‑Fi scan"
+            #    f"{f' on {iface.strInterfaceDescription!r}' if iface else ''}"
+            #    f"(Attempt {attempt}/{max_attempts})"
+            #)
+
+            logger.debug("Scanning Wifi. Attempt %s / %s", attempt, max_attempts)
             try:
                 force_scan_nativewifi(h_client, iface)
             except (RuntimeError, OSError, ctypes.ArgumentError) as e:
@@ -403,6 +406,7 @@ def connect_wifi(
     scan_delay: int,
     readback: str,
     hard_fail_on_scan_error: bool,
+    debug: Optional[bool] = False
 ) -> bool:
     """
     Connect to a saved WLAN profile, forcing a pre‑scan via WlanScan to ensure fresh results.
@@ -411,10 +415,12 @@ def connect_wifi(
     """
     current = get_current_ssid()
     if current and ssid and current.lower() == ssid.lower():
-        print(f"✅ Already connected to SSID '{current}'.")
+        if debug:
+            logger.debug("Already connected to SSID %s",current)
         return True
     if current and not ssid and current.lower() == profile_name.lower():
-        print(f"✅ Already connected to '{profile_name}'.")
+        if debug:
+            logger.debug("Already connected to %s",profile_name)
         return True
 
     # Force a fresh scan and verify visibility
@@ -542,6 +548,7 @@ def connect_simple(
     timeout: int = 25,
     retry_interval: int = 3,
     retry_count: int = 3,
+    debug: bool = False,
     interface: Optional[str] = None,
     readback: str = "netsh",
 ) -> bool:
@@ -588,7 +595,8 @@ def connect_simple(
         timeout=timeout,
         retry_interval=retry_interval,
         scan_attempts=retry_count,
-        scan_delay=max(4, retry_interval),  # a sensible default coupling
+        scan_delay=max(4, retry_interval),  # a sensible default coupling,
+        debug = debug,
         readback=readback,
         hard_fail_on_scan_error=False,
     )

@@ -1,4 +1,7 @@
-'''breathe_easy.py - ResMed xPAP uploader client for SleepHQ'''
+'''breathe_easy.py - ResMed xPAP uploader client for SleepHQ
+Written by: BChap - SleepHQ Community Forum Member
+Last Modified Date: 20260613
+'''
 
 
 import os
@@ -6,6 +9,8 @@ import time
 import logging
 import sys
 import argparse
+import ctypes
+
 from datetime import datetime
 
 from yaml import safe_load
@@ -17,6 +22,10 @@ import breathe_easy.sleephq_upload as sleephq_upload
 from breathe_easy.generate_config_yaml import make_config, prune_keys
 from breathe_easy.ezshare_getter import run_ezshare
 from breathe_easy.sleephq_upload import sleephq_upload
+
+
+MYAPPID = "BRITS.BREATHE_EASY"
+ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(MYAPPID)
 
 def get_base_dir():
 
@@ -288,7 +297,7 @@ def breathe_easy():
         print("📂Running SD Card data import...")
 
         sd_copy.run_backup(sd_params['sd_path'],
-                           os.join.path(BASEDIR,global_params['save_to_path']),
+                           os.path.join(BASEDIR,global_params['save_to_path']),
                            'DATALOG',
                            'SETTINGS',
                            global_params['number_of_days'],

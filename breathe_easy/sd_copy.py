@@ -1,8 +1,5 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-r"""
-CPAP-UPLOAD.py
+'''
+sd_copy.py
 
 Copies:
   1) All files in SD root (non-recursive)
@@ -14,20 +11,7 @@ Preserves (Windows FAT32 -> NTFS):
   - Date created via WinAPI SetFileTime (Created/Access/Write)
   - Directory timestamps restored after copy (so folder dates don't change)
 
-Examples (PowerShell):
-  # Copy newest 1 DATALOG folder (default)
-  python "C:\Users\bc0112\Desktop\CPAP-UPLOAD.py" 
-  --sd-root "E:\" --dest-root "C:\Users\bc0112\Desktop\LatestCPAP" --verbose
-
-  # Copy newest 3 DATALOG folders
-  python "C:\Users\bc0112\Desktop\CPAP-UPLOAD.py" 
-  --sd-root "E:\" --dest-root "C:\Users\bc0112\Desktop\LatestCPAP" --datalog-latest-n 3 --verbose
-
-  # Dry run
-  python "C:\Users\bc0112\Desktop\CPAP-UPLOAD.py" 
-  --sd-root "E:\" --dest-root "C:\Users\bc0112\Desktop\LatestCPAP" 
-  --datalog-latest-n 3 --dry-run --verbose
-"""
+'''
 
 from __future__ import annotations
 
@@ -36,7 +20,6 @@ import hashlib
 import logging
 import os
 import re
-import logging
 from datetime import datetime
 from pathlib import Path
 from shutil import copy2
@@ -52,6 +35,16 @@ DEFAULT_TIME_SLACK = 3.0
 # =============================================================================
 # Windows FILETIME helpers (preserve Date created + access + write)
 # =============================================================================
+
+def get_created_seconds(path: Path) -> float:
+    '''returns windows created time seconds'''
+
+    if os.name == "nt":
+        c, _, _ = get_filetimes(path)
+        return filetime_to_unix_seconds(c)
+
+    raise NotImplementedError("Created-time verification is Windows-only.")
+
 if os.name == "nt":
     import ctypes
     from ctypes import wintypes
@@ -139,25 +132,27 @@ if os.name == "nt":
         try:
             c, a, w = get_filetimes(src)
             set_filetimes(dst, c, a, w)
-        except Exception as e:
-            logging.warning("[TIMES] Could not preserve created time for: %s (%s)",dst,e)
+
+        except (FileNotFoundError, PermissionError) as e:
+            logging.warning(
+             "[TIMES] File access issue for %s -> %s (%s)",
+                src, dst, e
+            )
+
+        except OSError as e:
+            # Covers Windows API errors, invalid handles, etc.
+            logging.warning(
+                "[TIMES] OS error while preserving times for %s -> %s (%s)",
+                src, dst, e
+            )
 
     def filetime_to_unix_seconds(ft: wintypes.FILETIME) -> float:
+
+        '''converts filetime to unix seconds'''
+
         # FILETIME: 100-ns ticks since 1601-01-01
         val = (ft.dwHighDateTime << 32) + ft.dwLowDateTime
         return (val / 10_000_000.0) - 11644473600.0
-
-    def get_created_seconds(path: Path) -> float:
-        c, _, _ = get_filetimes(path)
-        return filetime_to_unix_seconds(c)
-
-else:
-    def preserve_windows_times(src: Path, dst: Path) -> None:
-        return
-
-    def get_created_seconds(path: Path) -> float:
-        raise NotImplementedError("Created-time verification is Windows-only.")
-
 
 # =============================================================================
 # Latest datalog subfolder selection (name-based date parsing with fallback)
@@ -184,6 +179,7 @@ DATE_RX = re.compile(
 )
 
 def parse_datetime_from_name(name: str) -> Optional[datetime]:
+
     """
     Parse a datetime from folder name like:
       20260130
@@ -195,6 +191,7 @@ def parse_datetime_from_name(name: str) -> Optional[datetime]:
     m = DATE_RX.search(name)
     if not m:
         return None
+
     try:
         y = int(m.group("y"))
         mo = int(m.group("m"))
@@ -203,10 +200,12 @@ def parse_datetime_from_name(name: str) -> Optional[datetime]:
         mi = int(m.group("mi")) if m.group("mi") else 0
         s = int(m.group("s")) if m.group("s") else 0
         return datetime(y, mo, d, h, mi, s)
-    except Exception:
+    except (ValueError, TypeError):
         return None
 
+
 def pick_latest_subfolders(datalog_dir: Path, n: int) -> List[Path]:
+
     """
     Pick the N newest immediate subfolders under datalog_dir.
     Ranking rules:
@@ -214,6 +213,7 @@ def pick_latest_subfolders(datalog_dir: Path, n: int) -> List[Path]:
       2) Then by parsed timestamp (or fallback mtime if no parsed date)
     Returns a list sorted from newest -> oldest.
     """
+
     subdirs = [p for p in datalog_dir.iterdir() if p.is_dir()]
     if not subdirs or n <= 0:
         return []
@@ -238,6 +238,9 @@ def pick_latest_subfolders(datalog_dir: Path, n: int) -> List[Path]:
 
 
 def sha256_file(path: Path, chunk: int = 1024 * 1024) -> str:
+
+    '''performs a file hash'''
+
     h = hashlib.sha256()
     with path.open("rb") as f:
         while True:
@@ -254,6 +257,9 @@ def verify_copy(
     verify_hash: bool,
     verify_created: bool
 ) -> Tuple[bool, str]:
+
+    '''verifies the file copy'''
+
     try:
         ss = src.stat()
         ds = dst.stat()
@@ -285,12 +291,18 @@ def verify_copy(
 # Copy helpers (copy2 + preserve created + restore directory timestamps)
 # =============================================================================
 def ensure_dir(path: Path, dry_run: bool) -> None:
+
+    '''ensures directory'''
+
     if not path.exists():
         logging.debug("Creating directory: %s", path)
         if not dry_run:
             path.mkdir(parents=True, exist_ok=True)
 
 def ensure_parent(path: Path, dry_run: bool) -> None:
+
+    '''ensures parent directory'''
+
     ensure_dir(path.parent, dry_run)
 
 def copy_file(
@@ -302,8 +314,12 @@ def copy_file(
     verify_hash: bool,
     verify_created: bool
 ) -> None:
+
+    '''Copies the file'''
+
     ensure_parent(dst, dry_run)
-    logging.info("COPY  %s  ->  %s",src, dst)
+    logger.debug("COPY  %s  ->  %s",src, dst)
+
     if dry_run:
         return
 
@@ -319,15 +335,17 @@ def copy_file(
                                  verify_created=verify_created)
         if not ok:
             raise IOError(f"Verification failed: {dst} ({reason})")
-        logging.debug("VERIFY OK: %s", dst)
+        logger.debug("VERIFY OK: %s", dst)
+
 
 def restore_directory_timestamps(dst_dir: Path, src_dir: Path, dry_run: bool) -> None:
     """
     Restore directory timestamps so folder Date modified/created don't change due to file copy.
     """
+    if dry_run:
+        return
+
     try:
-        if dry_run:
-            return
         ensure_dir(dst_dir, dry_run=False)
 
         if os.name == "nt":
@@ -335,8 +353,13 @@ def restore_directory_timestamps(dst_dir: Path, src_dir: Path, dry_run: bool) ->
         else:
             st = src_dir.stat()
             os.utime(dst_dir, (st.st_atime, st.st_mtime))
-    except Exception as e:
-        logging.warning("Could not restore directory timestamps for %s: %s", dst_dir, e)
+
+    except (OSError, PermissionError, FileNotFoundError) as e:
+        logging.warning(
+            "Could not restore directory timestamps for %s: %s",
+            dst_dir,
+            e,
+        )
 
 def copy_tree(
     src_dir: Path,
@@ -347,6 +370,7 @@ def copy_tree(
     verify_hash: bool,
     verify_created: bool
 ) -> int:
+
     """
     Copies tree items in reverse order
     
@@ -367,6 +391,7 @@ def copy_tree(
     :return: number of copied items
     :rtype: int
     """
+
     ensure_dir(dst_dir, dry_run)
     copied = 0
 
@@ -392,7 +417,7 @@ def copy_tree(
 
 def run_backup(
     sd_root: Path,
-    dest_root: Path,
+    dest_root: str,
     datalog_name: str,
     settings_name: str,
     days_to_import: int,
@@ -432,13 +457,14 @@ def run_backup(
     """
     print(f"Copying contents of SD card: {sd_root} to: {dest_root}")
     sd_root = Path(sd_root).resolve()
-    dest_root = Path(dest_root).resolve()
+    dest_root_path = Path(dest_root)
+    dest_root_path = Path(dest_root_path).resolve()
 
     if not sd_root.exists():
         raise SystemExit(f"SD root does not exist: {sd_root}")
 
     if not dry_run:
-        dest_root.mkdir(parents=True, exist_ok=True)
+        dest_root_path.mkdir(parents=True, exist_ok=True)
 
     logging.info("Source (SD):        %s", sd_root)
     logging.info("Destination:        %s", dest_root)
@@ -457,7 +483,7 @@ def run_backup(
     logging.info("Step 1: Root-level files (non-recursive)...")
     for item in sd_root.iterdir():
         if item.is_file() and not item.is_symlink():
-            copy_file(item, dest_root / item.name, dry_run, slack, verify,
+            copy_file(item, dest_root_path / item.name, dry_run, slack, verify,
                      verify_hash, verify_created)
             total += 1
 
@@ -466,7 +492,7 @@ def run_backup(
     logging.info("Step 2: SETTINGS path: %s", settings_dir)
     if settings_dir.exists() and settings_dir.is_dir():
         logging.info("Copying SETTINGS/ recursively...")
-        total += copy_tree(settings_dir, dest_root / settings_name, dry_run,
+        total += copy_tree(settings_dir, dest_root_path / settings_name, dry_run,
                            slack, verify, verify_hash, verify_created)
     else:
         logging.warning("SETTINGS folder not found (skipping): %s", settings_dir)
@@ -486,17 +512,16 @@ def run_backup(
             for folder in latest_folders:
                 total += copy_tree(
                     folder,
-                    dest_root / datalog_name / folder.name,
+                    dest_root_path / datalog_name / folder.name,
                     dry_run, slack, verify, verify_hash, verify_created
                 )
 
             # Restore timestamps on destination DATALOG container folder itself
-            restore_directory_timestamps(dest_root / datalog_name, datalog_dir, dry_run)
+            restore_directory_timestamps(dest_root_path / datalog_name, datalog_dir, dry_run)
     else:
         logging.warning("DATALOG folder not found (skipping): %s", datalog_dir)
 
     logging.info("Done. Total files copied: %s", total)
-
 
 def parse_args() -> argparse.Namespace:
     """
@@ -543,7 +568,7 @@ def main() -> None:
 
     run_backup(
         sd_root=Path(args.sd_root),
-        dest_root=Path(args.dest_root),
+        dest_root=args.dest_root,
         datalog_name=args.datalog_name,
         settings_name=args.settings_name,
         days_to_import=args.days_to_import,

@@ -4,7 +4,7 @@ card and getting the most recent (N) days worth of data. This can be used standa
 import module that will enter at the runner function.
 
 Author: BChap
-Last Modified: 20260219
+Last Modified: 20260613
 """
 
 # Standard imports
@@ -29,7 +29,7 @@ from bs4.element import NavigableString
 from yaml import safe_load
 
 # First-Party Imports
-import breathe_easy.connect_wifi_windows as connect_wifi_windows
+from . import connect_wifi_windows
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +65,9 @@ def ensure_dir(path: Path):
     path.mkdir(parents=True, exist_ok=True)
 
 def script_dir(verbose: bool = False) -> Path:
+
     """Returns the current script's directory location"""
-    
+
     if getattr(sys, "frozen", False):
         # Running as a bundled executable
         p = Path(sys.executable).resolve().parent
@@ -618,11 +619,17 @@ def run_ezshare(sd_ip_addr:str,profiles:dict,dirs:dict,options:dict)->None:
     """
 
     # Build the session variables
-    sd_url = f"http://{sd_ip_addr}/dir?"
+    if options['verbose']:
+        debug = True
+    else:
+        debug = False
 
+    sd_url = f"http://{sd_ip_addr}/dir?"
+    logger.debug("Setting sd_url: %s", sd_url)
        # Prepare local output dirs
+
     base_out = script_dir(options['verbose'])/dirs['save']
-    print(f"files are being save to {base_out}")
+    logger.debug("Base output directory: %s",base_out)
     directories = {
         "out_root": base_out,
         "out_settings": base_out/"SETTINGS",
@@ -644,7 +651,7 @@ def run_ezshare(sd_ip_addr:str,profiles:dict,dirs:dict,options:dict)->None:
     try:
         connect_wifi_windows.connect_simple(profiles['sd'],
                                             timeout=20,retry_interval=3,
-                                            retry_count=3)
+                                            retry_count=3,debug=debug)
     except ConnectionError as conn_err:
         print(f"❌ {conn_err}")
         sys.exit("Unable to connect to the SD Card Network. Aborting")

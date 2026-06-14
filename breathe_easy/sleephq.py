@@ -2,10 +2,10 @@
 sleephq.py
 A SleepHQ V1 API Python Library
 V2.0 
-Written by BChap
+Written by BChap - SleepHQ Community Forum Member
 Sleep HQ API reference last pulled 
 2026-05-30 from https://sleephq.com/api-docs/index.html
-Last Updated 20260316
+Last Updated 20260613
 
 This represents a complete, ground-up re-write of code for interacting with sleephq endpoints. 
 - HTTP session is re-used across all non-auth endpoints (OAuth is handled at a different base url)
