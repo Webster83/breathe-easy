@@ -4,6 +4,8 @@ global_options:
   copy_from_local_sd_card: false  # Useful if failure was upload-related
   number_of_days: 1               # Number of nights of data to copy
   cleanup_after_upload: false     # Delete temp folder after upload?
+  dual_wlan_adapter_mode: true    # Experimental. Requires setting 2nd adapter statically to Ez-Sh@re SSID
+                                  # with no 'Connect Automatically' selected
 
 cleanup_options:
   files: []     # Files to remove during cleanup

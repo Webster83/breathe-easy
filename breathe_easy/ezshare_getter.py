@@ -648,13 +648,14 @@ def run_ezshare(sd_ip_addr:str,profiles:dict,dirs:dict,options:dict)->None:
     s.headers.update({"User-Agent": "breathe-easy_ezshare_getter/1.0"})
 
     # Join the sd card wifi
-    try:
-        connect_wifi_windows.connect_simple(profiles['sd'],
+    if not options['dual_wlan_adapters']:
+        try:
+            connect_wifi_windows.connect_simple(profiles['sd'],
                                             timeout=20,retry_interval=3,
                                             retry_count=3,debug=debug)
-    except ConnectionError as conn_err:
-        print(f"❌ {conn_err}")
-        sys.exit("Unable to connect to the SD Card Network. Aborting")
+        except ConnectionError as conn_err:
+            print(f"❌ {conn_err}")
+            sys.exit("Unable to connect to the SD Card Network. Aborting")
 
     # Iterate through the known folders needed for Resmed S10/11 device data imports
     # getting lists of files and folders found. The "process..." methods take care of the high level
@@ -684,16 +685,16 @@ def run_ezshare(sd_ip_addr:str,profiles:dict,dirs:dict,options:dict)->None:
 
     # Reconnect to home Wi-Fi. This probably needs to be a "Finally" under a try/except so
     # that local connectivity is always restored after copy either succeeds or errors.
-
-    print(f"Joining {profiles['home']}")
-    try:
-        connect_wifi_windows.connect_simple(profiles['home'],
+    if not options['dual_wlan_adapters']:
+        print(f"Joining {profiles['home']}")
+        try:
+            connect_wifi_windows.connect_simple(profiles['home'],
                                             timeout=20,
                                             retry_interval=3,
                                             retry_count=3)
-    except ConnectionError as conn_err:
-        print(f"❌ {conn_err}")
-        sys.exit("Unable to connect to the home network. Aborting")
+        except ConnectionError as conn_err:
+            print(f"❌ {conn_err}")
+            sys.exit("Unable to connect to the home network. Aborting")
 
     time.sleep(2)
 

@@ -279,6 +279,7 @@ def breathe_easy():
         }
 
         options={
+            'dual_wlan_adapters': global_params['dual_wlan_adapter_mode'],
             'overwrite':ezshare_params['overwrite'],
             'verbose':global_params['debug'],
             'n_days':global_params['number_of_days'],
